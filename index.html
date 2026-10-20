@@ -13,7 +13,7 @@
 <body class="bg-stone-100 text-stone-800 min-h-screen">
 
 <!-- ============ CONFIG: paste your Apps Script Web App URL ============ -->
-<script>const API_URL = 'PASTE_YOUR_WEB_APP_URL_HERE'; // https://script.google.com/macros/s/XXXX/exec</script>
+<script>const API_URL = 'https://script.google.com/macros/s/AKfycbxHPklVS_kgxI6ZXWiBhFS-S5gb87c1WeWD8uvp4A91opm1i3ejHTk3Bze2DCiYP-Ww8g/exec'; // https://script.google.com/macros/s/XXXX/exec</script>
 
 <!-- Login screen (shown until the backend accepts the credentials) -->
 <div id="loginView" class="hidden min-h-screen flex items-center justify-center p-4">
@@ -64,7 +64,7 @@
 <!-- Booking form modal -->
 <div id="formModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-10">
   <form id="bookForm" class="bg-white rounded-lg w-full max-w-md p-5 space-y-3 max-h-full overflow-y-auto">
-    <h2 class="text-lg font-bold" data-i18n="newBooking"></h2>
+    <h2 id="formTitle" class="text-lg font-bold" data-i18n="newBooking"></h2>
     <label class="block text-sm"><span data-i18n="name"></span> *<input name="customer_name" required class="mt-1 w-full border rounded px-2 py-1"></label>
     <label class="block text-sm"><span data-i18n="phone"></span> *<input name="phone_number" required inputmode="tel" class="mt-1 w-full border rounded px-2 py-1"></label>
     <label class="block text-sm"><span data-i18n="house"></span>
@@ -93,7 +93,10 @@
     <p id="cancelErr" class="hidden text-sm text-red-600"></p>
     <div class="flex justify-between pt-2">
       <button id="cancelBtn" type="button" class="px-3 py-1 rounded bg-red-600 text-white" data-i18n="cancelBooking"></button>
-      <button data-close class="px-3 py-1 rounded border" data-i18n="close"></button>
+      <div class="flex gap-2">
+        <button id="editBtn" type="button" class="px-3 py-1 rounded bg-sky-600 text-white" data-i18n="edit"></button>
+        <button data-close class="px-3 py-1 rounded border" data-i18n="close"></button>
+      </div>
     </div>
   </div>
 </div>
@@ -115,7 +118,9 @@ const I18N = {
     saved:'บันทึกการจองแล้ว: ', loadFail:'โหลดข้อมูลการจองไม่ได้: ',
     loginTitle:'เข้าสู่ระบบผู้ดูแล', username:'ชื่อผู้ใช้', password:'รหัสผ่าน', loginBtn:'เข้าสู่ระบบ', signingIn:'กำลังเข้าสู่ระบบ…',
     logout:'ออกจากระบบ', loginFail:'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', sessionExpired:'หมดเวลาการเข้าสู่ระบบ กรุณาเข้าสู่ระบบอีกครั้ง',
-    cancelBooking:'ยกเลิกการจอง', confirmCancel:'ยืนยันการยกเลิกการจองนี้? การกระทำนี้ลบข้อมูลการจองและย้อนกลับไม่ได้', cancelling:'กำลังยกเลิก…', cancelled:'ยกเลิกการจองแล้ว: '
+    cancelBooking:'ยกเลิกการจอง', confirmCancel:'ยืนยันการยกเลิกการจองนี้? การกระทำนี้ลบข้อมูลการจองและย้อนกลับไม่ได้', cancelling:'กำลังยกเลิก…', cancelled:'ยกเลิกการจองแล้ว: ',
+    editBooking:'แก้ไขการจอง', edit:'แก้ไข', updated:'อัปเดตการจองแล้ว: ',
+    badResponse:'เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง ตรวจสอบ API_URL (ต้องเป็นลิงก์ /exec ของ Web App เวอร์ชันล่าสุด) และสิทธิ์เข้าถึงเป็น "Anyone"'
   },
   en: {
     available:'Available', booked:'Booked (night of selected date)', office:'Office', walkway:'— walkway —',
@@ -129,7 +134,9 @@ const I18N = {
     saved:'Booking saved: ', loadFail:'Could not load bookings: ',
     loginTitle:'Admin Login', username:'Username', password:'Password', loginBtn:'Log in', signingIn:'Signing in…',
     logout:'Logout', loginFail:'Incorrect username or password', sessionExpired:'Session expired. Please log in again.',
-    cancelBooking:'Cancel booking', confirmCancel:'Cancel this booking? This deletes the booking and cannot be undone.', cancelling:'Cancelling…', cancelled:'Booking cancelled: '
+    cancelBooking:'Cancel booking', confirmCancel:'Cancel this booking? This deletes the booking and cannot be undone.', cancelling:'Cancelling…', cancelled:'Booking cancelled: ',
+    editBooking:'Edit Booking', edit:'Edit', updated:'Booking updated: ',
+    badResponse:'Invalid server response. Check API_URL (must be the latest Web App /exec link) and that access is set to "Anyone".'
   }
 };
 let lang = 'th';
@@ -188,7 +195,8 @@ async function api(action, data) {
   // text/plain avoids the CORS preflight that Apps Script cannot answer
   const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({ ...data, action, token: getToken() }) });
-  const j = await r.json();
+  let j;
+  try { j = JSON.parse(await r.text()); } catch (e) { throw new Error(t('badResponse')); }
   if (!j.ok && j.error === 'UNAUTHORIZED') { showLogin('sessionExpired'); throw new Error(t('sessionExpired')); }
   return j;
 }
@@ -200,7 +208,8 @@ async function load() {
     render();
   } catch (e) { if (getToken()) show(t('loadFail') + e.message, false); }
 }
-const save = payload => api('create', payload);
+let editingId = null;   // booking_id while editing, otherwise null
+const save = payload => api(editingId ? 'update' : 'create', payload);
 
 /* ---------- Login / logout ---------- */
 function enterApp() {
@@ -277,6 +286,10 @@ function openDetails(b) {
   $('detailModal').classList.remove('hidden');
 }
 
+$('editBtn').onclick = () => {
+  $('detailModal').classList.add('hidden');
+  openForm(currentBooking.house_number, currentBooking);
+};
 $('cancelBtn').onclick = async () => {
   if (!currentBooking || !confirm(t('confirmCancel'))) return;
   const btn = $('cancelBtn'), err = $('cancelErr');
@@ -293,11 +306,19 @@ $('cancelBtn').onclick = async () => {
 
 /* ---------- Form modal ---------- */
 const F = () => $('bookForm').elements;
-function openForm(house) {
+function openForm(house, b) {
   $('bookForm').reset(); $('formErr').classList.add('hidden');
   const f = F(), d = $('dateSel').value;
+  editingId = b ? b.booking_id : null;
+  $('formTitle').dataset.i18n = b ? 'editBooking' : 'newBooking';
+  $('formTitle').textContent = t(b ? 'editBooking' : 'newBooking');
   f.house_number.value = house || '';
-  f.check_in_date.value = d; f.check_out_date.value = addDays(d, 1);
+  f.check_in_date.value = b ? b.check_in_date : d; f.check_out_date.value = b ? b.check_out_date : addDays(d, 1);
+  if (b) {
+    f.customer_name.value = b.customer_name; f.phone_number.value = b.phone_number;
+    f.check_in_time.value = b.check_in_time; f.check_out_time.value = b.check_out_time;
+    f.extra_bed.checked = b.extra_bed === 1; f.purpose.value = b.purpose || '';
+  }
   f.check_in_date.min = addDays(today, -30); f.check_in_date.max = maxDate;
   f.check_out_date.max = addDays(maxDate, 1);
   updateExtra();
@@ -308,7 +329,7 @@ function updateExtra() {
   const f = F();
   const probe = { check_in_date: f.check_in_date.value, check_in_time: f.check_in_time.value,
                   check_out_date: f.check_out_date.value, check_out_time: f.check_out_time.value };
-  const used = bookings.filter(b => b.extra_bed === 1 && start(probe) < end(b) && end(probe) > start(b)).length;
+  const used = bookings.filter(b => b.extra_bed === 1 && b.booking_id !== editingId && start(probe) < end(b) && end(probe) > start(b)).length;
   const left = Math.max(0, MAX_EXTRA - used);
   $('extraBed').disabled = left === 0;
   if (left === 0) $('extraBed').checked = false;
@@ -324,14 +345,14 @@ $('bookForm').addEventListener('submit', async e => {
     house_number: f.house_number.value ? Number(f.house_number.value) : null,
     check_in_date: f.check_in_date.value, check_in_time: f.check_in_time.value,
     check_out_date: f.check_out_date.value, check_out_time: f.check_out_time.value,
-    extra_bed: f.extra_bed.checked ? 1 : 0, purpose: f.purpose.value
+    extra_bed: f.extra_bed.checked ? 1 : 0, purpose: f.purpose.value, booking_id: editingId || undefined
   };
   btn.disabled = true; btn.textContent = t('saving'); err.classList.add('hidden');
   try {
     const j = await save(payload);
     if (!j.ok) throw new Error(j.error);
     $('formModal').classList.add('hidden');
-    show(t('saved') + j.booking.booking_id, true);
+    show(t(editingId ? 'updated' : 'saved') + j.booking.booking_id, true);
     await load();
   } catch (x) { err.textContent = x.message; err.classList.remove('hidden'); }
   btn.disabled = false; btn.textContent = t('save');
