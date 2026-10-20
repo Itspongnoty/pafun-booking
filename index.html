@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PLATFORM PAFUN</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .house{transition:transform .1s} .house:hover{transform:translateY(-2px)}
+  .layout{display:grid;grid-template-columns:repeat(6,minmax(84px,1fr));gap:10px;min-width:560px}
+</style>
+</head>
+<body class="bg-stone-100 text-stone-800 min-h-screen">
+
+<!-- ============ CONFIG: paste your Apps Script Web App URL ============ -->
+<script>const API_URL = 'https://script.google.com/macros/s/AKfycbxHPklVS_kgxI6ZXWiBhFS-S5gb87c1WeWD8uvp4A91opm1i3ejHTk3Bze2DCiYP-Ww8g/exec'; // https://script.google.com/macros/s/XXXX/exec</script>
+
+<!-- Login screen (shown until the backend accepts the credentials) -->
+<div id="loginView" class="hidden min-h-screen flex items-center justify-center p-4">
+  <form id="loginForm" class="bg-white rounded-lg shadow w-full max-w-sm p-6 space-y-3">
+    <div class="flex justify-end">
+      <div class="flex rounded overflow-hidden border border-emerald-300 bg-emerald-800 text-sm">
+        <button type="button" data-lang="th" class="px-2 py-1">ไทย</button>
+        <button type="button" data-lang="en" class="px-2 py-1">EN</button>
+      </div>
+    </div>
+    <h1 class="text-xl font-bold text-emerald-800 text-center">PLATFORM PAFUN</h1>
+    <p class="text-center text-sm text-stone-500" data-i18n="loginTitle"></p>
+    <label class="block text-sm"><span data-i18n="username"></span>
+      <input id="lUser" required autocomplete="username" class="mt-1 w-full border rounded px-2 py-1"></label>
+    <label class="block text-sm"><span data-i18n="password"></span>
+      <input id="lPass" type="password" required autocomplete="current-password" class="mt-1 w-full border rounded px-2 py-1"></label>
+    <p id="loginErr" class="hidden text-sm text-red-600"></p>
+    <button id="loginBtn" class="w-full py-2 rounded bg-emerald-700 text-white font-semibold" data-i18n="loginBtn"></button>
+  </form>
+</div>
+
+<div id="app" class="hidden">
+<header class="bg-emerald-800 text-white px-4 py-3 shadow">
+  <div class="max-w-4xl mx-auto flex flex-wrap items-center gap-3 justify-between">
+    <h1 class="text-xl font-bold tracking-wide">PLATFORM PAFUN <span class="font-normal text-emerald-200 text-sm">Pafun Cottage</span></h1>
+    <div class="flex flex-wrap items-center gap-3">
+      <div class="flex rounded overflow-hidden border border-emerald-300 text-sm" role="group" aria-label="Language">
+        <button data-lang="th" type="button" class="px-2 py-1">ไทย</button>
+        <button data-lang="en" type="button" class="px-2 py-1">EN</button>
+      </div>
+      <input id="dateSel" type="date" class="rounded px-2 py-1 text-stone-900">
+      <span id="bedBadge" class="bg-amber-300 text-stone-900 text-sm font-semibold rounded-full px-3 py-1"></span>
+      <button id="logoutBtn" type="button" class="text-sm border border-emerald-300 rounded px-2 py-1" data-i18n="logout"></button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-4xl mx-auto p-4">
+  <div id="msg" class="hidden mb-3 rounded px-3 py-2 text-sm"></div>
+  <div class="flex gap-4 text-sm mb-3">
+    <span><i class="inline-block w-3 h-3 rounded bg-emerald-500 align-middle"></i> <span data-i18n="available"></span></span>
+    <span><i class="inline-block w-3 h-3 rounded bg-red-500 align-middle"></i> <span data-i18n="booked"></span></span>
+  </div>
+  <div class="overflow-x-auto"><div id="layout" class="layout"></div></div>
+</main>
+</div><!-- /#app -->
+
+<!-- Booking form modal -->
+<div id="formModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-10">
+  <form id="bookForm" class="bg-white rounded-lg w-full max-w-md p-5 space-y-3 max-h-full overflow-y-auto">
+    <h2 class="text-lg font-bold" data-i18n="newBooking"></h2>
+    <label class="block text-sm"><span data-i18n="name"></span> *<input name="customer_name" required class="mt-1 w-full border rounded px-2 py-1"></label>
+    <label class="block text-sm"><span data-i18n="phone"></span> *<input name="phone_number" required inputmode="tel" class="mt-1 w-full border rounded px-2 py-1"></label>
+    <label class="block text-sm"><span data-i18n="house"></span>
+      <select name="house_number" class="mt-1 w-full border rounded px-2 py-1"></select></label>
+    <div class="grid grid-cols-2 gap-2">
+      <label class="block text-sm"><span data-i18n="ciDate"></span><input type="date" name="check_in_date" required class="mt-1 w-full border rounded px-2 py-1"></label>
+      <label class="block text-sm"><span data-i18n="ciTime"></span><input type="time" name="check_in_time" value="14:00" required class="mt-1 w-full border rounded px-2 py-1"></label>
+      <label class="block text-sm"><span data-i18n="coDate"></span><input type="date" name="check_out_date" required class="mt-1 w-full border rounded px-2 py-1"></label>
+      <label class="block text-sm"><span data-i18n="coTime"></span><input type="time" name="check_out_time" value="11:00" required class="mt-1 w-full border rounded px-2 py-1"></label>
+    </div>
+    <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="extra_bed" id="extraBed"> <span data-i18n="extraBed"></span> <span id="extraHint" class="text-stone-500"></span></label>
+    <label class="block text-sm"><span data-i18n="purpose"></span><textarea name="purpose" rows="2" class="mt-1 w-full border rounded px-2 py-1"></textarea></label>
+    <p id="formErr" class="hidden text-sm text-red-600"></p>
+    <div class="flex justify-end gap-2">
+      <button type="button" data-close class="px-3 py-1 rounded border" data-i18n="cancel"></button>
+      <button id="saveBtn" class="px-4 py-1 rounded bg-emerald-700 text-white" data-i18n="save"></button>
+    </div>
+  </form>
+</div>
+
+<!-- Details modal -->
+<div id="detailModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-10">
+  <div class="bg-white rounded-lg w-full max-w-sm p-5 space-y-2">
+    <h2 id="dTitle" class="text-lg font-bold"></h2>
+    <dl id="dBody" class="text-sm grid grid-cols-[110px_1fr] gap-y-1"></dl>
+    <div class="text-right"><button data-close class="px-3 py-1 rounded border" data-i18n="close"></button></div>
+  </div>
+</div>
+
+<script>
+const MAX_EXTRA = 2;
+
+/* ---------- Translations (default: Thai) ---------- */
+const I18N = {
+  th: {
+    available:'ว่าง', booked:'จองแล้ว (คืนของวันที่เลือก)', office:'ออฟฟิศ', walkway:'— ทางเดิน —',
+    beds:'เตียงเสริมที่ว่าง', house:'บ้านเลขที่', houseWord:'บ้าน', unassigned:'ยังไม่ระบุ',
+    single:'เตียงเดี่ยว', double:'เตียงคู่', special:'ห้องพิเศษ',
+    newBooking:'จองใหม่', name:'ชื่อลูกค้า', phone:'เบอร์โทรศัพท์',
+    ciDate:'วันเช็คอิน', ciTime:'เวลาเช็คอิน', coDate:'วันเช็คเอาท์', coTime:'เวลาเช็คเอาท์',
+    extraBed:'เตียงเสริม', leftFor:'เหลือ {n}/{m} ในช่วงวันที่เลือก', purpose:'วัตถุประสงค์ / หมายเหตุ',
+    cancel:'ยกเลิก', save:'บันทึก', saving:'กำลังบันทึก…', close:'ปิด',
+    checkIn:'เช็คอิน', checkOut:'เช็คเอาท์', yes:'ใช่', no:'ไม่',
+    saved:'บันทึกการจองแล้ว: ', loadFail:'โหลดข้อมูลการจองไม่ได้: ',
+    loginTitle:'เข้าสู่ระบบผู้ดูแล', username:'ชื่อผู้ใช้', password:'รหัสผ่าน', loginBtn:'เข้าสู่ระบบ', signingIn:'กำลังเข้าสู่ระบบ…',
+    logout:'ออกจากระบบ', loginFail:'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', sessionExpired:'หมดเวลาการเข้าสู่ระบบ กรุณาเข้าสู่ระบบอีกครั้ง'
+  },
+  en: {
+    available:'Available', booked:'Booked (night of selected date)', office:'Office', walkway:'— walkway —',
+    beds:'Available Extra Beds', house:'House Number', houseWord:'House', unassigned:'Unassigned',
+    single:'Single Bed', double:'Double Bed', special:'Special Room',
+    newBooking:'New Booking', name:'Customer Name', phone:'Phone Number',
+    ciDate:'Check-in Date', ciTime:'Check-in Time', coDate:'Check-out Date', coTime:'Check-out Time',
+    extraBed:'Extra bed', leftFor:'{n}/{m} left for these dates', purpose:'Purpose / Notes',
+    cancel:'Cancel', save:'Save', saving:'Saving…', close:'Close',
+    checkIn:'Check-in', checkOut:'Check-out', yes:'Yes', no:'No',
+    saved:'Booking saved: ', loadFail:'Could not load bookings: ',
+    loginTitle:'Admin Login', username:'Username', password:'Password', loginBtn:'Log in', signingIn:'Signing in…',
+    logout:'Logout', loginFail:'Incorrect username or password', sessionExpired:'Session expired. Please log in again.'
+  }
+};
+let lang = 'th';
+try { const s = localStorage.getItem('pafun_lang'); if (s === 'en' || s === 'th') lang = s; } catch (e) {}
+const t = k => I18N[lang][k];
+const TYPES = n => t(n <= 7 ? 'single' : n <= 11 ? 'double' : 'special');
+
+// Grid cell per house, mirroring the layout plan (col,row)
+const POS = {1:[6,2], 2:[6,3], 8:[1,3], 9:[2,3], 10:[3,3], 11:[4,3], 12:[5,3],
+             7:[1,5], 6:[2,5], 5:[3,5], 4:[4,5], 3:[5,5]};
+let bookings = [];
+const $ = id => document.getElementById(id);
+
+/* ---------- date helpers (local time, YYYY-MM-DD) ---------- */
+const fmt = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+const addDays = (s, n) => { const d = new Date(s + 'T00:00'); d.setDate(d.getDate() + n); return fmt(d); };
+const today = fmt(new Date());
+const maxDate = (() => { const d = new Date(); d.setMonth(d.getMonth() + 6); return fmt(d); })();
+const start = b => b.check_in_date + ' ' + b.check_in_time;
+const end = b => b.check_out_date + ' ' + b.check_out_time;
+// A house is occupied on a date if that night falls inside [check-in date, check-out date)
+const occupies = (b, d) => b.check_in_date <= d && b.check_out_date > d;
+
+function show(text, ok) {
+  const m = $('msg'); m.textContent = text;
+  m.className = 'mb-3 rounded px-3 py-2 text-sm ' + (ok ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700');
+  setTimeout(() => m.classList.add('hidden'), 6000);
+}
+
+/* ---------- Language switching ---------- */
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-i18n]').forEach(el => el.textContent = t(el.dataset.i18n));
+  const sel = document.querySelector('[name=house_number]'), cur = sel.value;
+  sel.innerHTML = '';
+  const o0 = document.createElement('option'); o0.value = ''; o0.textContent = t('unassigned'); sel.appendChild(o0);
+  for (let n = 1; n <= 12; n++) {
+    const o = document.createElement('option'); o.value = n; o.textContent = `${t('houseWord')} ${n} (${TYPES(n)})`; sel.appendChild(o);
+  }
+  sel.value = cur;
+  const on = 'bg-white text-emerald-800 font-semibold';
+  document.querySelectorAll('[data-lang]').forEach(b => b.className = 'px-2 py-1 ' + (b.dataset.lang === lang ? on : 'text-white'));
+  $('saveBtn').textContent = t('save');
+  updateExtra(); render();
+}
+function setLang(l) {
+  lang = l;
+  try { localStorage.setItem('pafun_lang', l); } catch (e) {}
+  applyLang();
+}
+document.querySelectorAll('[data-lang]').forEach(b => b.onclick = () => setLang(b.dataset.lang));
+
+/* ---------- API (every call except login carries the session token) ---------- */
+const getToken = () => { try { return sessionStorage.getItem('pafun_token'); } catch (e) { return null; } };
+async function api(action, data) {
+  // text/plain avoids the CORS preflight that Apps Script cannot answer
+  const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ ...data, action, token: getToken() }) });
+  const j = await r.json();
+  if (!j.ok && j.error === 'UNAUTHORIZED') { showLogin('sessionExpired'); throw new Error(t('sessionExpired')); }
+  return j;
+}
+async function load() {
+  try {
+    const j = await api('list');
+    if (!j.ok) throw new Error(j.error);
+    bookings = j.bookings;
+    render();
+  } catch (e) { if (getToken()) show(t('loadFail') + e.message, false); }
+}
+const save = payload => api('create', payload);
+
+/* ---------- Login / logout ---------- */
+function enterApp() {
+  $('loginView').classList.add('hidden'); $('app').classList.remove('hidden');
+  render(); load();
+}
+function showLogin(msgKey) {
+  try { sessionStorage.removeItem('pafun_token'); } catch (e) {}
+  bookings = []; $('layout').innerHTML = '';
+  $('app').classList.add('hidden');
+  document.querySelectorAll('#formModal,#detailModal').forEach(m => m.classList.add('hidden'));
+  $('loginView').classList.remove('hidden');
+  const err = $('loginErr');
+  if (msgKey) { err.textContent = t(msgKey); err.classList.remove('hidden'); } else err.classList.add('hidden');
+}
+$('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = $('loginBtn'), err = $('loginErr');
+  btn.disabled = true; btn.textContent = t('signingIn'); err.classList.add('hidden');
+  try {
+    const j = await api('login', { username: $('lUser').value.trim(), password: $('lPass').value });
+    if (!j.ok) throw new Error(j.error === 'INVALID_LOGIN' ? t('loginFail') : j.error);
+    try { sessionStorage.setItem('pafun_token', j.token); } catch (x) {}
+    $('lPass').value = ''; enterApp();
+  } catch (x) { err.textContent = x.message; err.classList.remove('hidden'); }
+  btn.disabled = false; btn.textContent = t('loginBtn');
+});
+$('logoutBtn').onclick = async () => {
+  try { await api('logout'); } catch (e) {}   // best effort: also invalidates the token server-side
+  showLogin();
+};
+
+/* ---------- Render ---------- */
+function render() {
+  if (!getToken()) return;   // house map is never built before login
+  const d = $('dateSel').value;
+  const used = bookings.filter(b => b.extra_bed === 1 && occupies(b, d)).length;
+  $('bedBadge').textContent = `${t('beds')}: ${Math.max(0, MAX_EXTRA - used)}/${MAX_EXTRA}`;
+
+  const L = $('layout'); L.innerHTML = '';
+  const office = document.createElement('div');
+  office.className = 'rounded bg-sky-100 text-sky-800 text-center text-sm font-semibold flex items-center justify-center h-16';
+  office.style.gridColumn = 6; office.style.gridRow = 1; office.textContent = t('office');
+  L.appendChild(office);
+  const road = document.createElement('div');
+  road.className = 'text-center text-xs text-stone-400 self-center';
+  road.style.gridColumn = '1 / 6'; road.style.gridRow = 4; road.textContent = t('walkway');
+  L.appendChild(road);
+
+  for (let n = 1; n <= 12; n++) {
+    const b = bookings.find(x => x.house_number === n && occupies(x, d));
+    const el = document.createElement('button');
+    el.className = 'house h-24 rounded-lg text-white shadow flex flex-col items-center justify-center ' + (b ? 'bg-red-500' : 'bg-emerald-500');
+    el.style.gridColumn = POS[n][0]; el.style.gridRow = POS[n][1];
+    el.innerHTML = `<span class="text-3xl font-bold">${n}</span><span class="text-xs opacity-90">${TYPES(n)}</span>`;
+    el.onclick = () => b ? openDetails(b) : openForm(n);
+    L.appendChild(el);
+  }
+}
+
+/* ---------- Details modal ---------- */
+function openDetails(b) {
+  $('dTitle').textContent = `${t('houseWord')} ${b.house_number} · ${b.booking_id}`;
+  const rows = [[t('name'), b.customer_name], [t('phone'), b.phone_number], [t('checkIn'), start(b)], [t('checkOut'), end(b)],
+    [t('extraBed'), b.extra_bed ? t('yes') : t('no')], [t('purpose'), b.purpose || '-']];
+  $('dBody').innerHTML = '';
+  rows.forEach(([k, v]) => {
+    const dt = document.createElement('dt'); dt.className = 'text-stone-500'; dt.textContent = k;
+    const dd = document.createElement('dd'); dd.textContent = v;   // textContent = safe from HTML injection
+    $('dBody').append(dt, dd);
+  });
+  $('detailModal').classList.remove('hidden');
+}
+
+/* ---------- Form modal ---------- */
+const F = () => $('bookForm').elements;
+function openForm(house) {
+  $('bookForm').reset(); $('formErr').classList.add('hidden');
+  const f = F(), d = $('dateSel').value;
+  f.house_number.value = house || '';
+  f.check_in_date.value = d; f.check_out_date.value = addDays(d, 1);
+  f.check_in_date.min = addDays(today, -30); f.check_in_date.max = maxDate;
+  f.check_out_date.max = addDays(maxDate, 1);
+  updateExtra();
+  $('formModal').classList.remove('hidden');
+}
+// Disable extra bed if capacity for the chosen range is exhausted
+function updateExtra() {
+  const f = F();
+  const probe = { check_in_date: f.check_in_date.value, check_in_time: f.check_in_time.value,
+                  check_out_date: f.check_out_date.value, check_out_time: f.check_out_time.value };
+  const used = bookings.filter(b => b.extra_bed === 1 && start(probe) < end(b) && end(probe) > start(b)).length;
+  const left = Math.max(0, MAX_EXTRA - used);
+  $('extraBed').disabled = left === 0;
+  if (left === 0) $('extraBed').checked = false;
+  $('extraHint').textContent = '(' + t('leftFor').replace('{n}', left).replace('{m}', MAX_EXTRA) + ')';
+}
+
+$('bookForm').addEventListener('input', updateExtra);
+$('bookForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = F(), btn = $('saveBtn'), err = $('formErr');
+  const payload = {
+    customer_name: f.customer_name.value, phone_number: f.phone_number.value,
+    house_number: f.house_number.value ? Number(f.house_number.value) : null,
+    check_in_date: f.check_in_date.value, check_in_time: f.check_in_time.value,
+    check_out_date: f.check_out_date.value, check_out_time: f.check_out_time.value,
+    extra_bed: f.extra_bed.checked ? 1 : 0, purpose: f.purpose.value
+  };
+  btn.disabled = true; btn.textContent = t('saving'); err.classList.add('hidden');
+  try {
+    const j = await save(payload);
+    if (!j.ok) throw new Error(j.error);
+    $('formModal').classList.add('hidden');
+    show(t('saved') + j.booking.booking_id, true);
+    await load();
+  } catch (x) { err.textContent = x.message; err.classList.remove('hidden'); }
+  btn.disabled = false; btn.textContent = t('save');
+});
+
+/* ---------- Init ---------- */
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => document.querySelectorAll('#formModal,#detailModal').forEach(m => m.classList.add('hidden')));
+const ds = $('dateSel'); ds.min = addDays(today, -30); ds.max = maxDate; ds.value = today;
+ds.addEventListener('change', render);
+applyLang();
+getToken() ? enterApp() : showLogin();
+</script>
+</body>
+</html>
