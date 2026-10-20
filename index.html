@@ -13,7 +13,7 @@
 <body class="bg-stone-100 text-stone-800 min-h-screen">
 
 <!-- ============ CONFIG: paste your Apps Script Web App URL ============ -->
-<script>const API_URL = 'https://script.google.com/macros/s/AKfycbxHPklVS_kgxI6ZXWiBhFS-S5gb87c1WeWD8uvp4A91opm1i3ejHTk3Bze2DCiYP-Ww8g/exec'; // https://script.google.com/macros/s/XXXX/exec</script>
+<script>const API_URL = 'PASTE_YOUR_WEB_APP_URL_HERE'; // https://script.google.com/macros/s/XXXX/exec</script>
 
 <!-- Login screen (shown until the backend accepts the credentials) -->
 <div id="loginView" class="hidden min-h-screen flex items-center justify-center p-4">
@@ -90,7 +90,11 @@
   <div class="bg-white rounded-lg w-full max-w-sm p-5 space-y-2">
     <h2 id="dTitle" class="text-lg font-bold"></h2>
     <dl id="dBody" class="text-sm grid grid-cols-[110px_1fr] gap-y-1"></dl>
-    <div class="text-right"><button data-close class="px-3 py-1 rounded border" data-i18n="close"></button></div>
+    <p id="cancelErr" class="hidden text-sm text-red-600"></p>
+    <div class="flex justify-between pt-2">
+      <button id="cancelBtn" type="button" class="px-3 py-1 rounded bg-red-600 text-white" data-i18n="cancelBooking"></button>
+      <button data-close class="px-3 py-1 rounded border" data-i18n="close"></button>
+    </div>
   </div>
 </div>
 
@@ -110,7 +114,8 @@ const I18N = {
     checkIn:'เช็คอิน', checkOut:'เช็คเอาท์', yes:'ใช่', no:'ไม่',
     saved:'บันทึกการจองแล้ว: ', loadFail:'โหลดข้อมูลการจองไม่ได้: ',
     loginTitle:'เข้าสู่ระบบผู้ดูแล', username:'ชื่อผู้ใช้', password:'รหัสผ่าน', loginBtn:'เข้าสู่ระบบ', signingIn:'กำลังเข้าสู่ระบบ…',
-    logout:'ออกจากระบบ', loginFail:'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', sessionExpired:'หมดเวลาการเข้าสู่ระบบ กรุณาเข้าสู่ระบบอีกครั้ง'
+    logout:'ออกจากระบบ', loginFail:'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', sessionExpired:'หมดเวลาการเข้าสู่ระบบ กรุณาเข้าสู่ระบบอีกครั้ง',
+    cancelBooking:'ยกเลิกการจอง', confirmCancel:'ยืนยันการยกเลิกการจองนี้? การกระทำนี้ลบข้อมูลการจองและย้อนกลับไม่ได้', cancelling:'กำลังยกเลิก…', cancelled:'ยกเลิกการจองแล้ว: '
   },
   en: {
     available:'Available', booked:'Booked (night of selected date)', office:'Office', walkway:'— walkway —',
@@ -123,7 +128,8 @@ const I18N = {
     checkIn:'Check-in', checkOut:'Check-out', yes:'Yes', no:'No',
     saved:'Booking saved: ', loadFail:'Could not load bookings: ',
     loginTitle:'Admin Login', username:'Username', password:'Password', loginBtn:'Log in', signingIn:'Signing in…',
-    logout:'Logout', loginFail:'Incorrect username or password', sessionExpired:'Session expired. Please log in again.'
+    logout:'Logout', loginFail:'Incorrect username or password', sessionExpired:'Session expired. Please log in again.',
+    cancelBooking:'Cancel booking', confirmCancel:'Cancel this booking? This deletes the booking and cannot be undone.', cancelling:'Cancelling…', cancelled:'Booking cancelled: '
   }
 };
 let lang = 'th';
@@ -256,7 +262,9 @@ function render() {
 }
 
 /* ---------- Details modal ---------- */
+let currentBooking = null;
 function openDetails(b) {
+  currentBooking = b; $('cancelErr').classList.add('hidden');
   $('dTitle').textContent = `${t('houseWord')} ${b.house_number} · ${b.booking_id}`;
   const rows = [[t('name'), b.customer_name], [t('phone'), b.phone_number], [t('checkIn'), start(b)], [t('checkOut'), end(b)],
     [t('extraBed'), b.extra_bed ? t('yes') : t('no')], [t('purpose'), b.purpose || '-']];
@@ -268,6 +276,20 @@ function openDetails(b) {
   });
   $('detailModal').classList.remove('hidden');
 }
+
+$('cancelBtn').onclick = async () => {
+  if (!currentBooking || !confirm(t('confirmCancel'))) return;
+  const btn = $('cancelBtn'), err = $('cancelErr');
+  btn.disabled = true; btn.textContent = t('cancelling'); err.classList.add('hidden');
+  try {
+    const j = await api('cancel', { booking_id: currentBooking.booking_id });
+    if (!j.ok) throw new Error(j.error);
+    $('detailModal').classList.add('hidden');
+    show(t('cancelled') + currentBooking.booking_id, true);
+    await load();
+  } catch (x) { err.textContent = x.message; err.classList.remove('hidden'); }
+  btn.disabled = false; btn.textContent = t('cancelBooking');
+};
 
 /* ---------- Form modal ---------- */
 const F = () => $('bookForm').elements;
