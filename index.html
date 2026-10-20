@@ -13,7 +13,7 @@
 <body class="bg-stone-100 text-stone-800 min-h-screen">
 
 <!-- ============ CONFIG: paste your Apps Script Web App URL ============ -->
-<script>const API_URL = 'https://script.google.com/macros/s/AKfycbxHPklVS_kgxI6ZXWiBhFS-S5gb87c1WeWD8uvp4A91opm1i3ejHTk3Bze2DCiYP-Ww8g/exec'; // https://script.google.com/macros/s/XXXX/exec</script>
+<script>const API_URL = 'https://script.google.com/macros/s/AKfycbxHPklVS_kgxI6ZXWiBhFS-S5gb87c1WeWD8uvp4A91opm1i3ejHTk3Bze2DCiYP-Ww8g/exec';</script>
 
 <!-- Login screen (shown until the backend accepts the credentials) -->
 <div id="loginView" class="hidden min-h-screen flex items-center justify-center p-4">
@@ -119,6 +119,7 @@ const I18N = {
     loginTitle:'เข้าสู่ระบบผู้ดูแล', username:'ชื่อผู้ใช้', password:'รหัสผ่าน', loginBtn:'เข้าสู่ระบบ', signingIn:'กำลังเข้าสู่ระบบ…',
     logout:'ออกจากระบบ', loginFail:'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', sessionExpired:'หมดเวลาการเข้าสู่ระบบ กรุณาเข้าสู่ระบบอีกครั้ง',
     cancelBooking:'ยกเลิกการจอง', confirmCancel:'ยืนยันการยกเลิกการจองนี้? การกระทำนี้ลบข้อมูลการจองและย้อนกลับไม่ได้', cancelling:'กำลังยกเลิก…', cancelled:'ยกเลิกการจองแล้ว: ',
+    outdated:'Backend (Code.gs) ยังเป็นเวอร์ชันเก่า: ไปที่ Deploy → Manage deployments → Edit → New version แล้วรีเฟรชหน้านี้',
     editBooking:'แก้ไขการจอง', edit:'แก้ไข', updated:'อัปเดตการจองแล้ว: ',
     badResponse:'เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง ตรวจสอบ API_URL (ต้องเป็นลิงก์ /exec ของ Web App เวอร์ชันล่าสุด) และสิทธิ์เข้าถึงเป็น "Anyone"'
   },
@@ -135,6 +136,7 @@ const I18N = {
     loginTitle:'Admin Login', username:'Username', password:'Password', loginBtn:'Log in', signingIn:'Signing in…',
     logout:'Logout', loginFail:'Incorrect username or password', sessionExpired:'Session expired. Please log in again.',
     cancelBooking:'Cancel booking', confirmCancel:'Cancel this booking? This deletes the booking and cannot be undone.', cancelling:'Cancelling…', cancelled:'Booking cancelled: ',
+    outdated:'Backend (Code.gs) is outdated: go to Deploy → Manage deployments → Edit → New version, then reload this page.',
     editBooking:'Edit Booking', edit:'Edit', updated:'Booking updated: ',
     badResponse:'Invalid server response. Check API_URL (must be the latest Web App /exec link) and that access is set to "Anyone".'
   }
@@ -200,11 +202,12 @@ async function api(action, data) {
   if (!j.ok && j.error === 'UNAUTHORIZED') { showLogin('sessionExpired'); throw new Error(t('sessionExpired')); }
   return j;
 }
+let apiVersion = 0;   // backend version; edit/cancel need >= 3
 async function load() {
   try {
     const j = await api('list');
     if (!j.ok) throw new Error(j.error);
-    bookings = j.bookings;
+    bookings = j.bookings; apiVersion = j.api_version || 0;
     render();
   } catch (e) { if (getToken()) show(t('loadFail') + e.message, false); }
 }
@@ -286,12 +289,17 @@ function openDetails(b) {
   $('detailModal').classList.remove('hidden');
 }
 
+const outdated = () => {
+  if (apiVersion >= 3) return false;
+  const e = $('cancelErr'); e.textContent = t('outdated'); e.classList.remove('hidden'); return true;
+};
 $('editBtn').onclick = () => {
+  if (outdated()) return;
   $('detailModal').classList.add('hidden');
   openForm(currentBooking.house_number, currentBooking);
 };
 $('cancelBtn').onclick = async () => {
-  if (!currentBooking || !confirm(t('confirmCancel'))) return;
+  if (!currentBooking || outdated() || !confirm(t('confirmCancel'))) return;
   const btn = $('cancelBtn'), err = $('cancelErr');
   btn.disabled = true; btn.textContent = t('cancelling'); err.classList.add('hidden');
   try {
