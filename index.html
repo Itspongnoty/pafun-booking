@@ -8,6 +8,29 @@
 <style>
   .house{transition:transform .1s} .house:hover{transform:translateY(-2px)}
   .layout{display:grid;grid-template-columns:repeat(6,minmax(84px,1fr));gap:10px;min-width:560px}
+  .print-only{display:none}
+  @page{margin:12mm}
+  @media print{
+    /* remove navigation, buttons and dialogs */
+    .no-print,header,#formModal,#detailModal,#maintModal,#msg{display:none !important}
+    body{background:#fff !important;color:#000 !important}
+    .print-only{display:block !important}
+    /* which view is printed: body.print-daily (map + summary) or body.print-month (calendar) */
+    body.print-daily #monthModal{display:none !important}
+    body.print-month #app{display:none !important}
+    body.print-month #monthModal{display:block !important;position:static !important;background:none !important;padding:0 !important;overflow:visible !important}
+    body.print-month #monthBox{max-height:none !important;box-shadow:none !important;padding:0 !important;max-width:none !important}
+    /* no coloured fills: status is shown with text + border style instead */
+    .house{background:#fff !important;color:#000 !important;border:1px solid #000;box-shadow:none !important;break-inside:avoid}
+    .house.st-booked{border:3px solid #000}
+    .house.st-repair{border:2px dashed #000}
+    .m-sq{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .m-free{background:#fff !important;color:#000 !important;border:1px solid #999}
+    .m-booked{background:#000 !important;color:#fff !important}
+    .m-repair{background:#fff !important;color:#000 !important;border:1px dashed #000}
+    .chip{border:1px solid #000 !important;background:#fff !important;color:#000 !important}
+    table{font-size:11px}
+  }
 </style>
 </head>
 <body class="bg-stone-100 text-stone-800 min-h-screen">
@@ -44,7 +67,7 @@
         <button data-lang="th" type="button" class="px-2 py-1">ไทย</button>
         <button data-lang="en" type="button" class="px-2 py-1">EN</button>
       </div>
-      <input id="dateSel" type="date" class="rounded px-2 py-1 text-stone-900">
+      <label class="flex items-center gap-2 text-sm"><span data-i18n="stayDate" class="font-semibold"></span><input id="dateSel" type="date" class="rounded px-2 py-1 text-stone-900"></label>
       <span id="bedBadge" class="bg-amber-300 text-stone-900 text-sm font-semibold rounded-full px-3 py-1"></span>
       <button id="maintOpen" type="button" class="text-sm bg-yellow-400 text-stone-900 font-semibold rounded px-2 py-1" data-i18n="maintBtn"></button>
       <button id="logoutBtn" type="button" class="text-sm border border-emerald-300 rounded px-2 py-1" data-i18n="logout"></button>
@@ -54,12 +77,23 @@
 
 <main class="max-w-4xl mx-auto p-4">
   <div id="msg" class="hidden mb-3 rounded px-3 py-2 text-sm"></div>
-  <div class="flex gap-4 text-sm mb-3">
-    <span><i class="inline-block w-3 h-3 rounded bg-emerald-500 align-middle"></i> <span data-i18n="available"></span></span>
-    <span><i class="inline-block w-3 h-3 rounded bg-red-500 align-middle"></i> <span data-i18n="booked"></span></span>
-    <span><i class="inline-block w-3 h-3 rounded bg-yellow-400 align-middle"></i> <span data-i18n="repairLegend"></span></span>
+  <div class="print-only mb-2">
+    <h2 class="text-xl font-bold">PLATFORM PAFUN · Pafun Cottage</h2>
+    <p id="printDate" class="text-sm"></p>
+  </div>
+  <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+    <div class="flex flex-wrap gap-4 text-sm">
+      <span><i class="inline-block w-3 h-3 rounded bg-emerald-500 align-middle"></i> <span data-i18n="available"></span></span>
+      <span><i class="inline-block w-3 h-3 rounded bg-red-500 align-middle"></i> <span data-i18n="booked"></span></span>
+      <span><i class="inline-block w-3 h-3 rounded bg-yellow-400 align-middle"></i> <span data-i18n="repairLegend"></span></span>
+    </div>
+    <div class="no-print flex gap-2">
+      <button id="monthOpen" type="button" class="text-sm bg-white border rounded px-3 py-1" data-i18n="monthBtn"></button>
+      <button id="printDaily" type="button" class="text-sm bg-white border rounded px-3 py-1" data-i18n="printBtn"></button>
+    </div>
   </div>
   <div class="overflow-x-auto"><div id="layout" class="layout"></div></div>
+  <section id="summary" class="mt-4"></section>
 </main>
 </div><!-- /#app -->
 
@@ -77,6 +111,7 @@
       <label class="block text-sm"><span data-i18n="coDate"></span><input type="date" name="check_out_date" required class="mt-1 w-full border rounded px-2 py-1"></label>
       <label class="block text-sm"><span data-i18n="coTime"></span><input type="time" name="check_out_time" value="11:00" required class="mt-1 w-full border rounded px-2 py-1"></label>
     </div>
+    <div id="priceBox" class="rounded border bg-stone-50 p-2 text-sm"></div>
     <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="extra_bed" id="extraBed"> <span data-i18n="extraBed"></span> <span id="extraHint" class="text-stone-500"></span></label>
     <label class="block text-sm"><span data-i18n="purpose"></span><textarea name="purpose" rows="2" class="mt-1 w-full border rounded px-2 py-1"></textarea></label>
     <p id="formErr" class="hidden text-sm text-red-600"></p>
@@ -88,6 +123,33 @@
       </div>
     </div>
   </form>
+</div>
+
+<!-- Monthly overview modal -->
+<div id="monthModal" class="hidden fixed inset-0 bg-black/50 flex items-start justify-center p-2 sm:p-4 z-10 overflow-y-auto">
+  <div id="monthBox" class="bg-white rounded-lg w-full max-w-5xl p-4 my-2">
+    <div class="print-only mb-2"><h2 class="text-xl font-bold">PLATFORM PAFUN · Pafun Cottage</h2></div>
+    <div class="flex items-center justify-between gap-2 mb-2">
+      <button id="mPrev" type="button" class="no-print text-sm border rounded px-3 py-1" data-i18n="prevMonth"></button>
+      <h2 id="mTitle" class="text-lg font-bold text-center flex-1"></h2>
+      <button id="mNext" type="button" class="no-print text-sm border rounded px-3 py-1" data-i18n="nextMonth"></button>
+    </div>
+    <div class="no-print flex justify-end gap-2 mb-2">
+      <button id="printMonth" type="button" class="text-sm border rounded px-3 py-1" data-i18n="printBtn"></button>
+      <button type="button" data-close class="text-sm border rounded px-3 py-1" data-i18n="close"></button>
+    </div>
+    <div class="flex flex-wrap gap-4 text-xs mb-2">
+      <span><i class="inline-block w-3 h-3 rounded bg-emerald-400 align-middle"></i> <span data-i18n="stFree"></span></span>
+      <span><i class="inline-block w-3 h-3 rounded bg-red-500 align-middle"></i> <span data-i18n="stBooked"></span></span>
+      <span><i class="inline-block w-3 h-3 rounded bg-yellow-400 align-middle"></i> <span data-i18n="stRepair"></span></span>
+    </div>
+    <div class="overflow-x-auto"><div id="mGrid" style="min-width:640px"></div></div>
+    <p class="no-print text-xs text-stone-500 mt-1" data-i18n="dblHint"></p>
+    <div id="mDay" class="mt-4"></div>
+    <div id="mIncome" class="mt-3"></div>
+    <h3 class="font-bold mt-4 mb-1" data-i18n="monthBookings"></h3>
+    <div id="mList" class="overflow-x-auto"></div>
+  </div>
 </div>
 
 <!-- Maintenance (repair) modal -->
@@ -144,7 +206,14 @@ const I18N = {
     logout:'ออกจากระบบ', loginFail:'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', sessionExpired:'หมดเวลาการเข้าสู่ระบบ กรุณาเข้าสู่ระบบอีกครั้ง',
     cancelBooking:'ยกเลิกการจอง', confirmCancel:'ยืนยันการยกเลิกการจองนี้? การกระทำนี้ลบข้อมูลการจองและย้อนกลับไม่ได้', cancelling:'กำลังยกเลิก…', cancelled:'ยกเลิกการจองแล้ว: ',
     outdated:'Backend (Code.gs) ยังเป็นเวอร์ชันเก่า: ไปที่ Deploy → Manage deployments → Edit → New version แล้วรีเฟรชหน้านี้',
-    editBooking:'แก้ไขการจอง', repairLegend:'ปิดซ่อม', maintBtn:'🔧 แจ้งปิดซ่อม', maintTitle:'แจ้งปิดซ่อมห้อง', editMaint:'แก้ไขการปิดซ่อม',
+    editBooking:'แก้ไขการจอง', tableNote:'ตารางแสดงเฉพาะรายการที่ยังอยู่ในระบบ (เก็บไว้ 30 วันหลังเช็คเอาท์) ส่วนยอดรวมด้านบนมาจากฐานข้อมูลและครบถ้วน', monthIncome:'รายได้ค่าห้องเดือนนี้', nightsSold:'คืนที่ขายได้', occupancy:'อัตราการเข้าพัก',
+    colNightsM:'คืน (ในเดือนนี้)', colIncomeM:'รายได้ (บาท)', totalRow:'รวม',
+    incomeNote:'คำนวณจากจำนวนคืนที่อยู่ในเดือนนี้ × ราคาห้อง (ไม่รวมเตียงเสริม)', noHouseNote:'{n} รายการไม่ระบุบ้าน จึงไม่นับในรายได้', stayDate:'วันที่เข้าพัก', monthBtn:'📅 ภาพรวมรายเดือน', printBtn:'🖨 พิมพ์ / บันทึก PDF',
+    prevMonth:'◀ เดือนก่อนหน้า', nextMonth:'เดือนถัดไป ▶', nights:'จำนวนคืน', rate:'ราคาต่อคืน', totalCost:'ค่าห้องรวม', perNight:'คืน',
+    pickHouse:'เลือกบ้านเพื่อคำนวณราคา', roomType:'ประเภทห้อง', specialFull:'ห้องพิเศษ (เตียงคู่ + ทางลาดวีลแชร์)', currency:'บาท',
+    availRooms:'ห้องว่าง', rooms:'ห้อง', singleCat:'เตียงเดี่ยว (บ้าน 1–7)', doubleCat:'เตียงคู่และห้องพิเศษ (บ้าน 8–12)',
+    none:'ไม่มีห้องว่าง', bookedN:'จองแล้ว', stFree:'ว่าง', stBooked:'จอง', stRepair:'ซ่อม', dblHint:'คลิกเพื่อดูสรุปห้องว่าง · ดับเบิลคลิกวันที่เพื่อเปิดผังรายวัน',
+    monthBookings:'รายการจอง / ปิดซ่อมในเดือนนี้', colHouse:'บ้าน', colName:'ลูกค้า / รายการ', colTotal:'รวม (บาท)', noItems:'ไม่มีรายการในเดือนนี้', repairLegend:'ปิดซ่อม', maintBtn:'🔧 แจ้งปิดซ่อม', maintTitle:'แจ้งปิดซ่อมห้อง', editMaint:'แก้ไขการปิดซ่อม',
     startDate:'วันเริ่มซ่อม', endDate:'วันสิ้นสุดซ่อม (นับรวม)', repairNote:'สิ่งที่ซ่อม / หมายเหตุ', markRepair:'ปิดซ่อมห้องนี้แทน',
     selectHouse:'เลือกบ้าน', repairLabel:'ปิดซ่อม', status:'สถานะ', cancelMaint:'ยกเลิกการปิดซ่อม',
     confirmMaint:'ยกเลิกช่วงปิดซ่อมนี้? ห้องจะกลับมาว่างในช่วงวันดังกล่าว', maintSaved:'บันทึกการปิดซ่อมแล้ว: ',
@@ -165,7 +234,14 @@ const I18N = {
     logout:'Logout', loginFail:'Incorrect username or password', sessionExpired:'Session expired. Please log in again.',
     cancelBooking:'Cancel booking', confirmCancel:'Cancel this booking? This deletes the booking and cannot be undone.', cancelling:'Cancelling…', cancelled:'Booking cancelled: ',
     outdated:'Backend (Code.gs) is outdated: go to Deploy → Manage deployments → Edit → New version, then reload this page.',
-    editBooking:'Edit Booking', repairLegend:'Under repair', maintBtn:'🔧 Mark repair', maintTitle:'Mark House Under Repair', editMaint:'Edit Repair Period',
+    editBooking:'Edit Booking', tableNote:'The table lists bookings still in the system (kept 30 days after check-out). The totals above come from the database and are complete.', monthIncome:'Room income this month', nightsSold:'Nights sold', occupancy:'Occupancy',
+    colNightsM:'Nights (this month)', colIncomeM:'Income (THB)', totalRow:'Total',
+    incomeNote:'Nights falling in this month × room rate (extra beds not included)', noHouseNote:'{n} booking(s) without a house are not counted', stayDate:'Stay Date', monthBtn:'📅 Monthly Overview', printBtn:'🖨 Print / Save PDF',
+    prevMonth:'◀ Previous Month', nextMonth:'Next Month ▶', nights:'Nights', rate:'Rate / night', totalCost:'Total Room Cost', perNight:'night',
+    pickHouse:'Select a house to calculate the price', roomType:'Room type', specialFull:'Special Room (Double Bed with Wheelchair Ramp)', currency:'THB',
+    availRooms:'Available', rooms:'rooms', singleCat:'Single Bed (Houses 1–7)', doubleCat:'Double Bed & Special Room (Houses 8–12)',
+    none:'None available', bookedN:'Booked', stFree:'Free', stBooked:'Booked', stRepair:'Repair', dblHint:'Click a day for its availability summary · Double-click to open it in the daily view',
+    monthBookings:'Bookings / repairs this month', colHouse:'House', colName:'Customer / Item', colTotal:'Total (THB)', noItems:'Nothing this month', repairLegend:'Under repair', maintBtn:'🔧 Mark repair', maintTitle:'Mark House Under Repair', editMaint:'Edit Repair Period',
     startDate:'Repair start date', endDate:'Repair end date (inclusive)', repairNote:'What is being fixed / Notes', markRepair:'Mark this house as under repair instead',
     selectHouse:'Select house', repairLabel:'Under repair', status:'Status', cancelMaint:'Cancel repair period',
     confirmMaint:'Cancel this repair period? The house becomes available for these dates.', maintSaved:'Repair period saved: ',
@@ -177,6 +253,17 @@ let lang = 'th';
 try { const s = localStorage.getItem('pafun_lang'); if (s === 'en' || s === 'th') lang = s; } catch (e) {}
 const t = k => I18N[lang][k];
 const TYPES = n => t(n <= 7 ? 'single' : n <= 11 ? 'double' : 'special');
+
+// Room rates (THB / night): houses 1-7 = 890, houses 8-12 (double + special) = 990
+const RATE = n => n <= 7 ? 890 : 990;
+// Saved price snapshot from the database; falls back to the current rate for older bookings
+const bookingRate = b => b.rate_per_night || RATE(b.house_number);
+const typeFull = n => n === 12 ? t('specialFull') : TYPES(n);
+const money = n => n.toLocaleString('en-US') + ' ' + t('currency');
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nightsBetween = (ci, co) => (ci && co) ? Math.max(0, Math.round((new Date(co + 'T00:00') - new Date(ci + 'T00:00')) / 864e5)) : 0;
+const bookingOn = (n, d) => bookings.find(x => x.house_number === n && occupies(x, d));
+const repairOn = (n, d) => maint.find(x => x.house_number === n && x.start_date <= d && d <= x.end_date);
 
 // Grid cell per house, mirroring the layout plan (col,row)
 const POS = {1:[6,2], 2:[6,3], 8:[1,3], 9:[2,3], 10:[3,3], 11:[4,3], 12:[5,3],
@@ -217,6 +304,7 @@ function applyLang() {
   document.querySelectorAll('[data-lang]').forEach(b => b.className = 'px-2 py-1 ' + (b.dataset.lang === lang ? on : 'text-white'));
   $('saveBtn').textContent = t('save');
   updateExtra(); render();
+  if (!$('monthModal').classList.contains('hidden')) renderMonth();
 }
 function setLang(l) {
   lang = l;
@@ -236,12 +324,13 @@ async function api(action, data) {
   if (!j.ok && j.error === 'UNAUTHORIZED') { showLogin('sessionExpired'); throw new Error(t('sessionExpired')); }
   return j;
 }
-let apiVersion = 0, maint = [];   // backend version; edit/cancel need >= 3
+let apiVersion = 0, maint = [], incomeMonthly = null;   // incomeMonthly: {'2026-10': {...}} sent by the server   // backend version; edit/cancel need >= 3
 async function load() {
   try {
     const j = await api('list');
     if (!j.ok) throw new Error(j.error);
     bookings = j.bookings; maint = j.maintenance || []; apiVersion = j.api_version || 0;
+    incomeMonthly = j.income_monthly ? Object.fromEntries(j.income_monthly.map(x => [x.month, x])) : null;
     render();
   } catch (e) { if (getToken()) show(t('loadFail') + e.message, false); }
 }
@@ -255,9 +344,9 @@ function enterApp() {
 }
 function showLogin(msgKey) {
   try { sessionStorage.removeItem('pafun_token'); } catch (e) {}
-  bookings = []; maint = []; $('layout').innerHTML = '';
+  bookings = []; maint = []; incomeMonthly = null; $('layout').innerHTML = '';
   $('app').classList.add('hidden');
-  document.querySelectorAll('#formModal,#detailModal,#maintModal').forEach(m => m.classList.add('hidden'));
+  document.querySelectorAll('#formModal,#detailModal,#maintModal,#monthModal').forEach(m => m.classList.add('hidden'));
   $('loginView').classList.remove('hidden');
   const err = $('loginErr');
   if (msgKey) { err.textContent = t(msgKey); err.classList.remove('hidden'); } else err.classList.add('hidden');
@@ -300,12 +389,31 @@ function render() {
     const b = bookings.find(x => x.house_number === n && occupies(x, d));
     const m = !b && maint.find(x => x.house_number === n && x.start_date <= d && d <= x.end_date);
     const el = document.createElement('button');
-    el.className = 'house h-24 rounded-lg shadow flex flex-col items-center justify-center ' + (b ? 'bg-red-500 text-white' : m ? 'bg-yellow-400 text-stone-900' : 'bg-emerald-500 text-white');
+    el.className = 'house st-' + (b ? 'booked' : m ? 'repair' : 'free') + ' h-24 rounded-lg shadow flex flex-col items-center justify-center ' + (b ? 'bg-red-500 text-white' : m ? 'bg-yellow-400 text-stone-900' : 'bg-emerald-500 text-white');
     el.style.gridColumn = POS[n][0]; el.style.gridRow = POS[n][1];
-    el.innerHTML = `<span class="text-3xl font-bold">${n}</span><span class="text-xs opacity-90">${m ? '🔧 ' + t('repairLabel') : TYPES(n)}</span>`;
+    el.innerHTML = `<span class="text-3xl font-bold">${n}</span><span class="text-xs opacity-90">${m ? '🔧 ' + t('repairLabel') : TYPES(n)}</span><span class="print-only text-xs font-bold">${t(b ? 'stBooked' : m ? 'stRepair' : 'stFree')}</span>${b ? '<span class="print-only text-[10px]">' + esc(b.customer_name) + '</span>' : ''}`;
     el.onclick = () => b ? openDetails(b) : m ? openMaintDetails(m) : openForm(n);
     L.appendChild(el);
   }
+  buildSummary($('summary'), d);
+  $('printDate').textContent = t('stayDate') + ': ' + d;
+}
+
+/* ---------- Daily availability summary (used in daily view and monthly view) ---------- */
+function buildSummary(el, d) {
+  const free = [], st = { booked: 0, repair: 0 };
+  for (let n = 1; n <= 12; n++) {
+    if (bookingOn(n, d)) st.booked++; else if (repairOn(n, d)) st.repair++; else free.push(n);
+  }
+  const chips = list => list.length
+    ? list.map(n => `<span class="chip inline-block rounded border border-emerald-600 bg-emerald-50 text-emerald-800 px-2 mx-0.5 font-semibold">${n}</span>`).join('')
+    : `<span class="text-stone-500">${t('none')}</span>`;
+  el.innerHTML = `<div class="rounded border bg-white p-3 text-sm space-y-1">
+    <div class="font-bold text-base">${t('stayDate')}: ${d} · ${t('availRooms')}: ${free.length}/12 ${t('rooms')}</div>
+    <div class="text-stone-500">${t('bookedN')} ${st.booked} · 🔧 ${t('repairLabel')} ${st.repair}</div>
+    <div>${t('singleCat')}: ${chips(free.filter(n => n <= 7))}</div>
+    <div>${t('doubleCat')}: ${chips(free.filter(n => n >= 8))}</div>
+  </div>`;
 }
 
 /* ---------- Details modal ---------- */
@@ -328,10 +436,16 @@ function openDetails(b) {
   $('dTitle').textContent = `${t('houseWord')} ${b.house_number} · ${b.booking_id}`;
   const rows = [[t('name'), b.customer_name], [t('phone'), b.phone_number], [t('checkIn'), start(b)], [t('checkOut'), end(b)],
     [t('extraBed'), b.extra_bed ? t('yes') : t('no')], [t('purpose'), b.purpose || '-']];
+  if (b.house_number) {
+    const nn = nightsBetween(b.check_in_date, b.check_out_date), r = bookingRate(b);
+    rows.splice(4, 0, [t('roomType'), typeFull(b.house_number)], [t('nights'), nn],
+      [t('rate'), money(r) + ' / ' + t('perNight')], [t('totalCost'), money(b.total_price != null ? b.total_price : nn * r)]);
+  }
   $('dBody').innerHTML = '';
   rows.forEach(([k, v]) => {
     const dt = document.createElement('dt'); dt.className = 'text-stone-500'; dt.textContent = k;
     const dd = document.createElement('dd'); dd.textContent = v;   // textContent = safe from HTML injection
+    if (k === t('totalCost')) dd.className = 'font-bold';
     $('dBody').append(dt, dd);
   });
   $('detailModal').classList.remove('hidden');
@@ -397,6 +511,19 @@ function updateExtra() {
   $('extraBed').disabled = left === 0;
   if (left === 0) $('extraBed').checked = false;
   $('extraHint').textContent = '(' + t('leftFor').replace('{n}', left).replace('{m}', MAX_EXTRA) + ')';
+  updatePrice();
+}
+// Nights + total room cost, recalculated whenever the house or dates change
+function updatePrice() {
+  const f = F(), n = Number(f.house_number.value) || 0;
+  const nn = nightsBetween(f.check_in_date.value, f.check_out_date.value);
+  let html = `<div>${t('nights')}: <b>${nn}</b></div>`;
+  const orig = editingId && bookings.find(x => x.booking_id === editingId);
+  const rate = n ? ((orig && orig.house_number === n && orig.rate_per_night) || RATE(n)) : 0;   // editing keeps the saved rate
+  if (n) html += `<div>${typeFull(n)} · ${t('rate')}: ${money(rate)} / ${t('perNight')}</div>
+    <div class="font-bold">${t('totalCost')}: ${money(nn * rate)}</div>`;
+  else html += `<div class="text-stone-500">${t('pickHouse')}</div>`;
+  $('priceBox').innerHTML = html;
 }
 
 $('bookForm').addEventListener('input', updateExtra);
@@ -453,8 +580,139 @@ $('maintForm').addEventListener('submit', async e => {
   btn.disabled = false; btn.textContent = t('save');
 });
 
+/* ---------- Monthly overview ---------- */
+let mY = 0, mM = 0, mSel = null;
+const pad2 = n => String(n).padStart(2, '0');
+const ymd = (y, m, d) => `${y}-${pad2(m + 1)}-${pad2(d)}`;
+const WEEKDAYS = { th: ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'], en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] };
+
+// Monthly view is limited to last month, this month and the next 6 months
+const mIdx = (y, m) => y * 12 + m;
+const [tY, tM] = today.split('-').map(Number);
+const MIN_M = mIdx(tY, tM - 1 - 1), MAX_M = mIdx(tY, tM - 1 + 6);   // tM is 1-based
+function openMonth() {
+  const [y, m] = $('dateSel').value.split('-').map(Number);
+  const idx = Math.min(MAX_M, Math.max(MIN_M, mIdx(y, m - 1)));
+  mY = Math.floor(idx / 12); mM = idx % 12;
+  mSel = $('dateSel').value.slice(0, 7) === `${mY}-${pad2(mM + 1)}` ? $('dateSel').value : ymd(mY, mM, 1);
+  renderMonth(); $('monthModal').classList.remove('hidden');
+}
+function shiftMonth(k) {
+  const idx = mIdx(mY, mM) + k;
+  if (idx < MIN_M || idx > MAX_M) return;
+  mY = Math.floor(idx / 12); mM = idx % 12;
+  mSel = today.slice(0, 7) === `${mY}-${pad2(mM + 1)}` ? today : ymd(mY, mM, 1);
+  renderMonth();
+}
+function renderMonth() {
+  const loc = lang === 'th' ? 'th-TH' : 'en-US';
+  const cur = mIdx(mY, mM);
+  [['mPrev', cur <= MIN_M], ['mNext', cur >= MAX_M]].forEach(([id, off]) => {
+    $(id).disabled = off; $(id).classList.toggle('opacity-40', off);
+  });
+  $('mTitle').textContent = new Date(mY, mM, 1).toLocaleDateString(loc, { month: 'long', year: 'numeric' });
+  const days = new Date(mY, mM + 1, 0).getDate(), first = new Date(mY, mM, 1).getDay();
+  let html = '<div class="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-stone-500 mb-1">' +
+    WEEKDAYS[lang].map(w => `<div>${w}</div>`).join('') + '</div><div class="grid grid-cols-7 gap-1">';
+  for (let i = 0; i < first; i++) html += '<div></div>';
+  for (let day = 1; day <= days; day++) {
+    const d = ymd(mY, mM, day);
+    let nb = 0, nr = 0, sq = '';
+    for (let n = 1; n <= 12; n++) {
+      const b = bookingOn(n, d), r = !b && repairOn(n, d);
+      if (b) nb++; else if (r) nr++;
+      const cls = b ? 'm-booked bg-red-500 text-white' : r ? 'm-repair bg-yellow-400 text-stone-900' : 'm-free bg-emerald-400 text-white';
+      const tip = b ? `${n}: ${esc(b.customer_name)}` : r ? `${n}: ${t('repairLabel')}` : `${n}: ${t('stFree')}`;
+      sq += `<span title="${tip}" class="m-sq ${cls} text-[8px] leading-4 text-center rounded-sm">${n}</span>`;
+    }
+    const ring = d === mSel ? ' ring-2 ring-emerald-600' : '', now = d === today ? ' bg-emerald-50 border-emerald-600' : ' bg-white';
+    html += `<button type="button" data-day="${d}" class="border rounded p-1 text-left touch-manipulation${now}${ring}">
+      <div class="flex justify-between text-xs"><b>${day}</b><span>${nb}/12${nr ? ' · 🔧' + nr : ''}</span></div>
+      <div class="grid grid-cols-6 gap-px mt-1">${sq}</div></button>`;
+  }
+  $('mGrid').innerHTML = html + '</div>';
+
+  // selected-day availability summary
+  buildSummary($('mDay'), mSel);
+
+  // table of bookings still in the system for this month (per-booking income = saved rate x nights in this month)
+  const ms = ymd(mY, mM, 1), me = ymd(mY, mM, days);
+  const nx = new Date(mY, mM + 1, 1), msNext = ymd(nx.getFullYear(), nx.getMonth(), 1);
+  const inMonth = (ci, co) => nightsBetween(ci > ms ? ci : ms, co < msNext ? co : msNext);
+  const rows = []; let noHouse = 0;
+  bookings.filter(b => b.check_in_date <= me && b.check_out_date > ms)
+    .sort((a, b) => start(a) < start(b) ? -1 : 1).forEach(b => {
+      const nn = inMonth(b.check_in_date, b.check_out_date);
+      let amt = '-';
+      if (b.house_number) amt = (nn * bookingRate(b)).toLocaleString('en-US'); else noHouse++;
+      rows.push([b.house_number || '-', esc(b.customer_name), start(b), end(b), nn, amt]);
+    });
+  maint.filter(x => x.start_date <= me && x.end_date >= ms).forEach(x =>
+    rows.push([x.house_number, '🔧 ' + t('repairLabel') + (x.note ? ' – ' + esc(x.note) : ''), x.start_date, x.end_date, '-', '-']));
+
+  // Money totals come from the DATABASE (calculated on the server from the archive + current bookings)
+  if (!incomeMonthly) {
+    $('mIncome').innerHTML = `<p class="text-sm text-red-600">${t('outdated')}</p>`;
+  } else {
+    const im = incomeMonthly[`${mY}-${pad2(mM + 1)}`] ||
+      { room_income: 0, nights_sold: 0, occupancy_pct: 0, single_income: 0, double_income: 0 };
+    $('mIncome').innerHTML = `<div class="rounded border bg-white p-3 text-sm space-y-1">
+      <div class="font-bold text-base">${t('monthIncome')}: ${money(im.room_income)}</div>
+      <div>${t('nightsSold')}: ${im.nights_sold} · ${t('occupancy')}: ${im.occupancy_pct}%</div>
+      <div>${t('singleCat')}: ${money(im.single_income)} · ${t('doubleCat')}: ${money(im.double_income)}</div>
+      <div class="text-xs text-stone-500">${t('incomeNote')}${noHouse ? ' · ' + t('noHouseNote').replace('{n}', noHouse) : ''}</div>
+    </div>`;
+  }
+  const partial = ms < addDays(today, -30);   // older data lives in the archive, so the table is incomplete
+  $('mList').innerHTML = (rows.length
+    ? `<table class="w-full text-sm border-collapse"><thead><tr class="bg-stone-100 text-left">` +
+      [t('colHouse'), t('colName'), t('checkIn'), t('checkOut'), t('colNightsM'), t('colIncomeM')].map(c => `<th class="border px-2 py-1">${c}</th>`).join('') +
+      `</tr></thead><tbody>` + rows.map(r => '<tr>' + r.map(c => `<td class="border px-2 py-1">${c}</td>`).join('') + '</tr>').join('') + `</tbody></table>`
+    : `<p class="text-sm text-stone-500">${t('noItems')}</p>`) +
+    (partial ? `<p class="text-xs text-stone-500 mt-1">${t('tableNote')}</p>` : '');
+}
+// Jump to a day in the main (daily) view, keeping it inside the date picker's limits
+function gotoDay(d) {
+  const ds = $('dateSel');
+  ds.value = d < ds.min ? ds.min : d > ds.max ? ds.max : d;
+  $('monthModal').classList.add('hidden');
+  render();
+}
+// Select a day WITHOUT rebuilding the grid (a rebuild between the two clicks of a double-click
+// made some browsers drop the double-click, so selection only toggles classes and the summary)
+function selectDay(d) {
+  mSel = d;
+  $('mGrid').querySelectorAll('[data-day]').forEach(c => {
+    const on = c.dataset.day === d;
+    c.classList.toggle('ring-2', on); c.classList.toggle('ring-emerald-600', on);
+  });
+  buildSummary($('mDay'), d);
+}
+// One click = select. Two clicks/taps on the same day within 0.5 s = open it in the daily view.
+// (Timing is measured on 'click' events, so it also works for taps on touch screens.)
+let lastTap = { d: null, t: 0 };
+$('mGrid').addEventListener('click', e => {
+  const b = e.target.closest('[data-day]'); if (!b) return;
+  const d = b.dataset.day, now = Date.now();
+  if (lastTap.d === d && now - lastTap.t < 500) { lastTap = { d: null, t: 0 }; gotoDay(d); return; }
+  lastTap = { d, t: now };
+  selectDay(d);
+});
+$('monthOpen').onclick = openMonth;
+$('mPrev').onclick = () => shiftMonth(-1);
+$('mNext').onclick = () => shiftMonth(1);
+
+/* ---------- Print / Save as PDF (CSS @media print decides what is shown) ---------- */
+function doPrint(mode) {
+  document.body.classList.remove('print-daily', 'print-month');
+  document.body.classList.add('print-' + mode);
+  window.print();
+}
+$('printDaily').onclick = () => doPrint('daily');
+$('printMonth').onclick = () => doPrint('month');
+
 /* ---------- Init ---------- */
-document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => document.querySelectorAll('#formModal,#detailModal,#maintModal').forEach(m => m.classList.add('hidden')));
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => document.querySelectorAll('#formModal,#detailModal,#maintModal,#monthModal').forEach(m => m.classList.add('hidden')));
 const ds = $('dateSel'); ds.min = addDays(today, -30); ds.max = maxDate; ds.value = today;
 ds.addEventListener('change', render);
 applyLang();
