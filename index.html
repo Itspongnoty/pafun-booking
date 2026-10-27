@@ -10,24 +10,30 @@
   .layout{display:grid;grid-template-columns:repeat(6,minmax(84px,1fr));gap:10px;min-width:560px}
   .print-only{display:none}
   @page{margin:12mm}
+  
+  /* ================= PRINT STYLING (HIGH CONTRAST) ================= */
   @media print{
-    /* remove navigation, buttons and dialogs */
+    *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important}
     .no-print,header,#formModal,#detailModal,#maintModal,#msg{display:none !important}
     body{background:#fff !important;color:#000 !important}
     .print-only{display:block !important}
-    /* which view is printed: body.print-daily (map + summary) or body.print-month (calendar) */
     body.print-daily #monthModal{display:none !important}
     body.print-month #app{display:none !important}
     body.print-month #monthModal{display:block !important;position:static !important;background:none !important;padding:0 !important;overflow:visible !important}
     body.print-month #monthBox{max-height:none !important;box-shadow:none !important;padding:0 !important;max-width:none !important}
-    /* no coloured fills: status is shown with text + border style instead */
-    .house{background:#fff !important;color:#000 !important;border:1px solid #000;box-shadow:none !important;break-inside:avoid}
-    .house.st-booked{border:3px solid #000}
-    .house.st-repair{border:2px dashed #000}
-    .m-sq{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .m-free{background:#fff !important;color:#000 !important;border:1px solid #999}
-    .m-booked{background:#000 !important;color:#fff !important}
-    .m-repair{background:#fff !important;color:#000 !important;border:1px dashed #000}
+    
+    /* Layout map print styling */
+    .house{box-shadow:none !important;break-inside:avoid}
+    .house.st-free{background:#f8fafc !important;color:#334155 !important;border:1px solid #cbd5e1 !important}
+    .house.st-booked{background:#000000 !important;color:#ffffff !important;border:3px solid #000000 !important;font-weight:bold !important}
+    .house.st-repair{background:#fef3c7 !important;color:#92400e !important;border:2px dashed #b45309 !important}
+    
+    /* Monthly calendar grid print styling */
+    .m-sq{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important}
+    .m-free{background:#f1f5f9 !important;color:#475569 !important;border:1px solid #cbd5e1 !important}
+    .m-booked{background:#000000 !important;color:#ffffff !important;border:1px solid #000000 !important;font-weight:bold !important}
+    .m-repair{background:#fef3c7 !important;color:#92400e !important;border:1px dashed #b45309 !important}
+    
     .chip{border:1px solid #000 !important;background:#fff !important;color:#000 !important}
     table{font-size:11px}
   }
@@ -38,7 +44,7 @@
 <!-- ============ CONFIG: paste your Apps Script Web App URL ============ -->
 <script>const API_URL = 'https://script.google.com/macros/s/AKfycbxHPklVS_kgxI6ZXWiBhFS-S5gb87c1WeWD8uvp4A91opm1i3ejHTk3Bze2DCiYP-Ww8g/exec';</script>
 
-<!-- Login screen (shown until the backend accepts the credentials) -->
+<!-- Login screen -->
 <div id="loginView" class="hidden min-h-screen flex items-center justify-center p-4">
   <form id="loginForm" class="bg-white rounded-lg shadow w-full max-w-sm p-6 space-y-3">
     <div class="flex justify-end">
@@ -68,7 +74,7 @@
         <button data-lang="en" type="button" class="px-2 py-1">EN</button>
       </div>
       <label class="flex items-center gap-2 text-sm"><span data-i18n="stayDate" class="font-semibold"></span><input id="dateSel" type="date" class="rounded px-2 py-1 text-stone-900"></label>
-      <span id="bedBadge" class="bg-amber-300 text-stone-900 text-sm font-semibold rounded-full px-3 py-1"></span>
+      <span id="bedBadge"></span>
       <button id="maintOpen" type="button" class="text-sm bg-yellow-400 text-stone-900 font-semibold rounded px-2 py-1" data-i18n="maintBtn"></button>
       <button id="logoutBtn" type="button" class="text-sm border border-emerald-300 rounded px-2 py-1" data-i18n="logout"></button>
     </div>
@@ -95,7 +101,7 @@
   <div class="overflow-x-auto"><div id="layout" class="layout"></div></div>
   <section id="summary" class="mt-4"></section>
 </main>
-</div><!-- /#app -->
+</div>
 
 <!-- Booking form modal -->
 <div id="formModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-10">
@@ -106,12 +112,12 @@
     <label class="block text-sm"><span data-i18n="house"></span>
       <select name="house_number" class="mt-1 w-full border rounded px-2 py-1"></select></label>
     <div class="grid grid-cols-2 gap-2">
-      <label class="block text-sm"><span data-i18n="ciDate"></span><input type="date" name="check_in_date" required class="mt-1 w-full border rounded px-2 py-1"></label>
+      <label class="block text-sm"><span data-i18n="ciDate"></span><input type="date" id="ciDateInput" name="check_in_date" required class="mt-1 w-full border rounded px-2 py-1"></label>
       <label class="block text-sm"><span data-i18n="ciTime"></span><input type="time" name="check_in_time" value="14:00" required class="mt-1 w-full border rounded px-2 py-1"></label>
-      <label class="block text-sm"><span data-i18n="coDate"></span><input type="date" name="check_out_date" required class="mt-1 w-full border rounded px-2 py-1"></label>
+      <label class="block text-sm"><span data-i18n="coDate"></span><input type="date" id="coDateInput" name="check_out_date" required class="mt-1 w-full border rounded px-2 py-1"></label>
       <label class="block text-sm"><span data-i18n="coTime"></span><input type="time" name="check_out_time" value="11:00" required class="mt-1 w-full border rounded px-2 py-1"></label>
     </div>
-    <div id="priceBox" class="rounded border bg-stone-50 p-2 text-sm"></div>
+    <div id="priceBox" class="rounded border bg-stone-50 p-2 text-sm space-y-1"></div>
     <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="extra_bed" id="extraBed"> <span data-i18n="extraBed"></span> <span id="extraHint" class="text-stone-500"></span></label>
     <label class="block text-sm"><span data-i18n="purpose"></span><textarea name="purpose" rows="2" class="mt-1 w-full border rounded px-2 py-1"></textarea></label>
     <p id="formErr" class="hidden text-sm text-red-600"></p>
@@ -152,7 +158,7 @@
   </div>
 </div>
 
-<!-- Maintenance (repair) modal -->
+<!-- Maintenance modal -->
 <div id="maintModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-10">
   <form id="maintForm" class="bg-white rounded-lg w-full max-w-md p-5 space-y-3 max-h-full overflow-y-auto">
     <h2 id="maintTitle" class="text-lg font-bold" data-i18n="maintTitle"></h2>
@@ -189,64 +195,64 @@
 
 <script>
 const MAX_EXTRA = 2;
+const EXTRA_BED_RATE = 400;
 
-/* ---------- Translations (default: Thai) ---------- */
 const I18N = {
   th: {
     available:'ว่าง', booked:'จองแล้ว (คืนของวันที่เลือก)', office:'ออฟฟิศ', walkway:'— ทางเดิน —',
-    beds:'เตียงเสริมที่ว่าง', house:'บ้านเลขที่', houseWord:'บ้าน', unassigned:'ยังไม่ระบุ',
+    beds:'เตียงเสริมที่ว่าง', house:'หมายเลขห้อง', houseWord:'ห้อง', unassigned:'ยังไม่ระบุห้อง',
     single:'เตียงเดี่ยว', double:'เตียงคู่', special:'ห้องพิเศษ',
     newBooking:'จองใหม่', name:'ชื่อลูกค้า', phone:'เบอร์โทรศัพท์',
     ciDate:'วันเช็คอิน', ciTime:'เวลาเช็คอิน', coDate:'วันเช็คเอาท์', coTime:'เวลาเช็คเอาท์',
-    extraBed:'เตียงเสริม', leftFor:'เหลือ {n}/{m} ในช่วงวันที่เลือก', purpose:'วัตถุประสงค์ / หมายเหตุ',
+    extraBed:'เตียงเสริม (+400 บาท/คืน)', leftFor:'เหลือ {n}/{m} ในช่วงวันที่เลือก', purpose:'วัตถุประสงค์ / หมายเหตุ',
     cancel:'ยกเลิก', save:'บันทึก', saving:'กำลังบันทึก…', close:'ปิด',
     checkIn:'เช็คอิน', checkOut:'เช็คเอาท์', yes:'ใช่', no:'ไม่',
     saved:'บันทึกการจองแล้ว: ', loadFail:'โหลดข้อมูลการจองไม่ได้: ',
     loginTitle:'เข้าสู่ระบบผู้ดูแล', username:'ชื่อผู้ใช้', password:'รหัสผ่าน', loginBtn:'เข้าสู่ระบบ', signingIn:'กำลังเข้าสู่ระบบ…',
     logout:'ออกจากระบบ', loginFail:'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', sessionExpired:'หมดเวลาการเข้าสู่ระบบ กรุณาเข้าสู่ระบบอีกครั้ง',
-    cancelBooking:'ยกเลิกการจอง', confirmCancel:'ยืนยันการยกเลิกการจองนี้? การกระทำนี้ลบข้อมูลการจองและย้อนกลับไม่ได้', cancelling:'กำลังยกเลิก…', cancelled:'ยกเลิกการจองแล้ว: ',
-    outdated:'Backend (Code.gs) ยังเป็นเวอร์ชันเก่า: ไปที่ Deploy → Manage deployments → Edit → New version แล้วรีเฟรชหน้านี้',
-    editBooking:'แก้ไขการจอง', tableNote:'ตารางแสดงเฉพาะรายการที่ยังอยู่ในระบบ (เก็บไว้ 30 วันหลังเช็คเอาท์) ส่วนยอดรวมด้านบนมาจากฐานข้อมูลและครบถ้วน', monthIncome:'รายได้ค่าห้องเดือนนี้', nightsSold:'คืนที่ขายได้', occupancy:'อัตราการเข้าพัก',
+    cancelBooking:'ยกเลิกการจอง', confirmCancel:'ยืนยันการยกเลิกการจองนี้?', cancelling:'กำลังยกเลิก…', cancelled:'ยกเลิกการจองแล้ว: ',
+    outdated:'Backend (Code.gs) ยังเป็นเวอร์ชันเก่า', monthIncome:'รายได้รวมเดือนนี้', nightsSold:'คืนที่ขายได้', occupancy:'อัตราการเข้าพัก',
     colNightsM:'คืน (ในเดือนนี้)', colIncomeM:'รายได้ (บาท)', totalRow:'รวม',
-    incomeNote:'คำนวณจากจำนวนคืนที่อยู่ในเดือนนี้ × ราคาห้อง (ไม่รวมเตียงเสริม)', noHouseNote:'{n} รายการไม่ระบุบ้าน จึงไม่นับในรายได้', stayDate:'วันที่เข้าพัก', monthBtn:'📅 ภาพรวมรายเดือน', printBtn:'🖨 พิมพ์ / บันทึก PDF',
-    prevMonth:'◀ เดือนก่อนหน้า', nextMonth:'เดือนถัดไป ▶', nights:'จำนวนคืน', rate:'ราคาต่อคืน', totalCost:'ค่าห้องรวม', perNight:'คืน',
-    pickHouse:'เลือกบ้านเพื่อคำนวณราคา', roomType:'ประเภทห้อง', specialFull:'ห้องพิเศษ (เตียงคู่ + ทางลาดวีลแชร์)', currency:'บาท',
-    availRooms:'ห้องว่าง', rooms:'ห้อง', singleCat:'เตียงเดี่ยว (บ้าน 1–7)', doubleCat:'เตียงคู่และห้องพิเศษ (บ้าน 8–12)',
+    incomeNote:'คำนวณจากจำนวนคืน × ราคาห้อง + เตียงเสริม', noHouseNote:'{n} รายการไม่ระบุห้อง จึงไม่นับในรายได้', stayDate:'วันที่เข้าพัก', monthBtn:'📅 ภาพรวมรายเดือน', printBtn:'🖨 พิมพ์ / บันทึก PDF',
+    prevMonth:'◀ เดือนก่อนหน้า', nextMonth:'เดือนถัดไป ▶', nights:'จำนวนคืน', rate:'ราคาห้องต่อคืน', totalCost:'ราคารวมทั้งหมด', perNight:'คืน',
+    pickHouse:'เลือกห้องเพื่อคำนวณราคา', roomType:'ประเภทห้อง', specialFull:'ห้องพิเศษ (เตียงคู่ + ทางลาดวีลแชร์)', currency:'บาท',
+    availRooms:'ห้องว่าง', rooms:'ห้อง', singleCat:'เตียงเดี่ยว (ห้อง 1–7)', doubleCat:'เตียงคู่และห้องพิเศษ (ห้อง 8–12)',
     none:'ไม่มีห้องว่าง', bookedN:'จองแล้ว', stFree:'ว่าง', stBooked:'จอง', stRepair:'ซ่อม', dblHint:'คลิกเพื่อดูสรุปห้องว่าง · ดับเบิลคลิกวันที่เพื่อเปิดผังรายวัน',
-    monthBookings:'รายการจอง / ปิดซ่อมในเดือนนี้', colHouse:'บ้าน', colName:'ลูกค้า / รายการ', colTotal:'รวม (บาท)', noItems:'ไม่มีรายการในเดือนนี้', repairLegend:'ปิดซ่อม', maintBtn:'🔧 แจ้งปิดซ่อม', maintTitle:'แจ้งปิดซ่อมห้อง', editMaint:'แก้ไขการปิดซ่อม',
-    startDate:'วันเริ่มซ่อม', endDate:'วันสิ้นสุดซ่อม (นับรวม)', repairNote:'สิ่งที่ซ่อม / หมายเหตุ', markRepair:'ปิดซ่อมห้องนี้แทน',
-    selectHouse:'เลือกบ้าน', repairLabel:'ปิดซ่อม', status:'สถานะ', cancelMaint:'ยกเลิกการปิดซ่อม',
-    confirmMaint:'ยกเลิกช่วงปิดซ่อมนี้? ห้องจะกลับมาว่างในช่วงวันดังกล่าว', maintSaved:'บันทึกการปิดซ่อมแล้ว: ',
+    monthBookings:'รายการจอง / ปิดซ่อมในเดือนนี้', colHouse:'ห้อง', colName:'ลูกค้า / รายการ', colTotal:'รวม (บาท)', noItems:'ไม่มีรายการในเดือนนี้', repairLegend:'ปิดซ่อม', maintBtn:'🔧 แจ้งปิดซ่อม', maintTitle:'แจ้งปิดซ่อมห้อง', editMaint:'แก้ไขการปิดซ่อม',
+    startDate:'วันเริ่มซ่อม', endDate:'วันสิ้นสุดซ่อม', repairNote:'สิ่งที่ซ่อม / หมายเหตุ', markRepair:'ปิดซ่อมห้องนี้แทน',
+    selectHouse:'เลือกห้อง', repairLabel:'ปิดซ่อม', status:'สถานะ', cancelMaint:'ยกเลิกการปิดซ่อม',
+    confirmMaint:'ยกเลิกช่วงปิดซ่อมนี้?', maintSaved:'บันทึกการปิดซ่อมแล้ว: ',
     maintUpdated:'อัปเดตการปิดซ่อมแล้ว: ', maintDeleted:'ยกเลิกการปิดซ่อมแล้ว: ', startLbl:'เริ่ม', endLbl:'สิ้นสุด', edit:'แก้ไข', updated:'อัปเดตการจองแล้ว: ',
-    badResponse:'เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง ตรวจสอบ API_URL (ต้องเป็นลิงก์ /exec ของ Web App เวอร์ชันล่าสุด) และสิทธิ์เข้าถึงเป็น "Anyone"'
+    badResponse:'เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง', roomCost:'ค่าห้องพัก', extraBedCost:'ค่าเตียงเสริม',
+    bedFullWarning:'⚠️ เตียงเสริมเต็มแล้วสำหรับวันที่เลือก (0/2)'
   },
   en: {
     available:'Available', booked:'Booked (night of selected date)', office:'Office', walkway:'— walkway —',
-    beds:'Available Extra Beds', house:'House Number', houseWord:'House', unassigned:'Unassigned',
+    beds:'Available Extra Beds', house:'Room Number', houseWord:'Room', unassigned:'Unassigned',
     single:'Single Bed', double:'Double Bed', special:'Special Room',
     newBooking:'New Booking', name:'Customer Name', phone:'Phone Number',
     ciDate:'Check-in Date', ciTime:'Check-in Time', coDate:'Check-out Date', coTime:'Check-out Time',
-    extraBed:'Extra bed', leftFor:'{n}/{m} left for these dates', purpose:'Purpose / Notes',
+    extraBed:'Extra bed (+400 THB/night)', leftFor:'{n}/{m} left for these dates', purpose:'Purpose / Notes',
     cancel:'Cancel', save:'Save', saving:'Saving…', close:'Close',
     checkIn:'Check-in', checkOut:'Check-out', yes:'Yes', no:'No',
     saved:'Booking saved: ', loadFail:'Could not load bookings: ',
     loginTitle:'Admin Login', username:'Username', password:'Password', loginBtn:'Log in', signingIn:'Signing in…',
-    logout:'Logout', loginFail:'Incorrect username or password', sessionExpired:'Session expired. Please log in again.',
-    cancelBooking:'Cancel booking', confirmCancel:'Cancel this booking? This deletes the booking and cannot be undone.', cancelling:'Cancelling…', cancelled:'Booking cancelled: ',
-    outdated:'Backend (Code.gs) is outdated: go to Deploy → Manage deployments → Edit → New version, then reload this page.',
-    editBooking:'Edit Booking', tableNote:'The table lists bookings still in the system (kept 30 days after check-out). The totals above come from the database and are complete.', monthIncome:'Room income this month', nightsSold:'Nights sold', occupancy:'Occupancy',
+    logout:'Logout', loginFail:'Incorrect username or password', sessionExpired:'Session expired.',
+    cancelBooking:'Cancel booking', confirmCancel:'Cancel this booking?', cancelling:'Cancelling…', cancelled:'Booking cancelled: ',
+    outdated:'Backend (Code.gs) is outdated', monthIncome:'Total Income This Month', nightsSold:'Nights sold', occupancy:'Occupancy',
     colNightsM:'Nights (this month)', colIncomeM:'Income (THB)', totalRow:'Total',
-    incomeNote:'Nights falling in this month × room rate (extra beds not included)', noHouseNote:'{n} booking(s) without a house are not counted', stayDate:'Stay Date', monthBtn:'📅 Monthly Overview', printBtn:'🖨 Print / Save PDF',
-    prevMonth:'◀ Previous Month', nextMonth:'Next Month ▶', nights:'Nights', rate:'Rate / night', totalCost:'Total Room Cost', perNight:'night',
-    pickHouse:'Select a house to calculate the price', roomType:'Room type', specialFull:'Special Room (Double Bed with Wheelchair Ramp)', currency:'THB',
-    availRooms:'Available', rooms:'rooms', singleCat:'Single Bed (Houses 1–7)', doubleCat:'Double Bed & Special Room (Houses 8–12)',
-    none:'None available', bookedN:'Booked', stFree:'Free', stBooked:'Booked', stRepair:'Repair', dblHint:'Click a day for its availability summary · Double-click to open it in the daily view',
-    monthBookings:'Bookings / repairs this month', colHouse:'House', colName:'Customer / Item', colTotal:'Total (THB)', noItems:'Nothing this month', repairLegend:'Under repair', maintBtn:'🔧 Mark repair', maintTitle:'Mark House Under Repair', editMaint:'Edit Repair Period',
-    startDate:'Repair start date', endDate:'Repair end date (inclusive)', repairNote:'What is being fixed / Notes', markRepair:'Mark this house as under repair instead',
-    selectHouse:'Select house', repairLabel:'Under repair', status:'Status', cancelMaint:'Cancel repair period',
-    confirmMaint:'Cancel this repair period? The house becomes available for these dates.', maintSaved:'Repair period saved: ',
-    maintUpdated:'Repair period updated: ', maintDeleted:'Repair period cancelled: ', startLbl:'Start', endLbl:'End', edit:'Edit', updated:'Booking updated: ',
-    badResponse:'Invalid server response. Check API_URL (must be the latest Web App /exec link) and that access is set to "Anyone".'
+    incomeNote:'Nights × room rate + extra bed', noHouseNote:'{n} unassigned booking(s) excluded', stayDate:'Stay Date', monthBtn:'📅 Monthly Overview', printBtn:'🖨 Print / Save PDF',
+    prevMonth:'◀ Previous Month', nextMonth:'Next Month ▶', nights:'Nights', rate:'Room rate / night', totalCost:'Total Cost', perNight:'night',
+    pickHouse:'Select a room to calculate price', roomType:'Room type', specialFull:'Special Room (Double Bed + Ramp)', currency:'THB',
+    availRooms:'Available', rooms:'rooms', singleCat:'Single Bed (Rooms 1–7)', doubleCat:'Double Bed & Special Room (Rooms 8–12)',
+    none:'None available', bookedN:'Booked', stFree:'Free', stBooked:'Booked', stRepair:'Repair', dblHint:'Click a day for summary · Double-click to open daily view',
+    monthBookings:'Bookings / repairs this month', colHouse:'Room', colName:'Customer / Item', colTotal:'Total (THB)', noItems:'Nothing this month', repairLegend:'Under repair', maintBtn:'🔧 Mark repair', maintTitle:'Mark Room Under Repair', editMaint:'Edit Repair Period',
+    startDate:'Repair start date', endDate:'Repair end date', repairNote:'Notes', markRepair:'Mark this room under repair instead',
+    selectHouse:'Select room', repairLabel:'Under repair', status:'Status', cancelMaint:'Cancel repair',
+    confirmMaint:'Cancel this repair period?', maintSaved:'Repair saved: ',
+    maintUpdated:'Repair updated: ', maintDeleted:'Repair cancelled: ', startLbl:'Start', endLbl:'End', edit:'Edit', updated:'Booking updated: ',
+    badResponse:'Invalid server response', roomCost:'Room Cost', extraBedCost:'Extra Bed Cost',
+    bedFullWarning:'⚠️ Extra beds fully booked (0/2)'
   }
 };
 let lang = 'th';
@@ -254,9 +260,7 @@ try { const s = localStorage.getItem('pafun_lang'); if (s === 'en' || s === 'th'
 const t = k => I18N[lang][k];
 const TYPES = n => t(n <= 7 ? 'single' : n <= 11 ? 'double' : 'special');
 
-// Room rates (THB / night): houses 1-7 = 890, houses 8-12 (double + special) = 990
 const RATE = n => n <= 7 ? 890 : 990;
-// Saved price snapshot from the database; falls back to the current rate for older bookings
 const bookingRate = b => b.rate_per_night || RATE(b.house_number);
 const typeFull = n => n === 12 ? t('specialFull') : TYPES(n);
 const money = n => n.toLocaleString('en-US') + ' ' + t('currency');
@@ -265,20 +269,17 @@ const nightsBetween = (ci, co) => (ci && co) ? Math.max(0, Math.round((new Date(
 const bookingOn = (n, d) => bookings.find(x => x.house_number === n && occupies(x, d));
 const repairOn = (n, d) => maint.find(x => x.house_number === n && x.start_date <= d && d <= x.end_date);
 
-// Grid cell per house, mirroring the layout plan (col,row)
 const POS = {1:[6,2], 2:[6,3], 8:[1,3], 9:[2,3], 10:[3,3], 11:[4,3], 12:[5,3],
              7:[1,5], 6:[2,5], 5:[3,5], 4:[4,5], 3:[5,5]};
-let bookings = [];
+let bookings = [], userRole = 'staff';
 const $ = id => document.getElementById(id);
 
-/* ---------- date helpers (local time, YYYY-MM-DD) ---------- */
 const fmt = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 const addDays = (s, n) => { const d = new Date(s + 'T00:00'); d.setDate(d.getDate() + n); return fmt(d); };
 const today = fmt(new Date());
 const maxDate = (() => { const d = new Date(); d.setMonth(d.getMonth() + 6); return fmt(d); })();
 const start = b => b.check_in_date + ' ' + b.check_in_time;
 const end = b => b.check_out_date + ' ' + b.check_out_time;
-// A house is occupied on a date if that night falls inside [check-in date, check-out date)
 const occupies = (b, d) => b.check_in_date <= d && b.check_out_date > d;
 
 function show(text, ok) {
@@ -287,7 +288,6 @@ function show(text, ok) {
   setTimeout(() => m.classList.add('hidden'), 6000);
 }
 
-/* ---------- Language switching ---------- */
 function applyLang() {
   document.documentElement.lang = lang;
   document.querySelectorAll('[data-i18n]').forEach(el => el.textContent = t(el.dataset.i18n));
@@ -313,10 +313,8 @@ function setLang(l) {
 }
 document.querySelectorAll('[data-lang]').forEach(b => b.onclick = () => setLang(b.dataset.lang));
 
-/* ---------- API (every call except login carries the session token) ---------- */
 const getToken = () => { try { return sessionStorage.getItem('pafun_token'); } catch (e) { return null; } };
 async function api(action, data) {
-  // text/plain avoids the CORS preflight that Apps Script cannot answer
   const r = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({ ...data, action, token: getToken() }) });
   let j;
@@ -324,20 +322,20 @@ async function api(action, data) {
   if (!j.ok && j.error === 'UNAUTHORIZED') { showLogin('sessionExpired'); throw new Error(t('sessionExpired')); }
   return j;
 }
-let apiVersion = 0, maint = [], incomeMonthly = null;   // incomeMonthly: {'2026-10': {...}} sent by the server   // backend version; edit/cancel need >= 3
+let apiVersion = 0, maint = [], incomeMonthly = null;
 async function load() {
   try {
     const j = await api('list');
     if (!j.ok) throw new Error(j.error);
     bookings = j.bookings; maint = j.maintenance || []; apiVersion = j.api_version || 0;
+    userRole = j.role || 'staff';
     incomeMonthly = j.income_monthly ? Object.fromEntries(j.income_monthly.map(x => [x.month, x])) : null;
     render();
   } catch (e) { if (getToken()) show(t('loadFail') + e.message, false); }
 }
-let editingId = null;   // booking_id while editing, otherwise null
+let editingId = null;
 const save = payload => api(editingId ? 'update' : 'create', payload);
 
-/* ---------- Login / logout ---------- */
 function enterApp() {
   $('loginView').classList.add('hidden'); $('app').classList.remove('hidden');
   render(); load();
@@ -359,21 +357,29 @@ $('loginForm').addEventListener('submit', async e => {
     const j = await api('login', { username: $('lUser').value.trim(), password: $('lPass').value });
     if (!j.ok) throw new Error(j.error === 'INVALID_LOGIN' ? t('loginFail') : j.error);
     try { sessionStorage.setItem('pafun_token', j.token); } catch (x) {}
+    userRole = j.role || 'staff';
     $('lPass').value = ''; enterApp();
   } catch (x) { err.textContent = x.message; err.classList.remove('hidden'); }
   btn.disabled = false; btn.textContent = t('loginBtn');
 });
 $('logoutBtn').onclick = async () => {
-  try { await api('logout'); } catch (e) {}   // best effort: also invalidates the token server-side
+  try { await api('logout'); } catch (e) {}
   showLogin();
 };
 
-/* ---------- Render ---------- */
 function render() {
-  if (!getToken()) return;   // house map is never built before login
+  if (!getToken()) return;
   const d = $('dateSel').value;
   const used = bookings.filter(b => b.extra_bed === 1 && occupies(b, d)).length;
-  $('bedBadge').textContent = `${t('beds')}: ${Math.max(0, MAX_EXTRA - used)}/${MAX_EXTRA}`;
+  const badge = $('bedBadge');
+  const remaining = Math.max(0, MAX_EXTRA - used);
+  if (remaining === 0) {
+    badge.textContent = `⚠️ ${t('beds')}: 0/${MAX_EXTRA}`;
+    badge.className = 'bg-red-600 text-white text-xs font-bold rounded-full px-3 py-1 shadow border border-white animate-pulse';
+  } else {
+    badge.textContent = `${t('beds')}: ${remaining}/${MAX_EXTRA}`;
+    badge.className = 'bg-amber-300 text-stone-900 text-sm font-semibold rounded-full px-3 py-1';
+  }
 
   const L = $('layout'); L.innerHTML = '';
   const office = document.createElement('div');
@@ -389,9 +395,11 @@ function render() {
     const b = bookings.find(x => x.house_number === n && occupies(x, d));
     const m = !b && maint.find(x => x.house_number === n && x.start_date <= d && d <= x.end_date);
     const el = document.createElement('button');
-    el.className = 'house st-' + (b ? 'booked' : m ? 'repair' : 'free') + ' h-24 rounded-lg shadow flex flex-col items-center justify-center ' + (b ? 'bg-red-500 text-white' : m ? 'bg-yellow-400 text-stone-900' : 'bg-emerald-500 text-white');
+    el.className = 'house st-' + (b ? 'booked' : m ? 'repair' : 'free') + ' h-24 rounded-lg shadow flex flex-col items-center justify-center relative ' + (b ? 'bg-red-500 text-white' : m ? 'bg-yellow-400 text-stone-900' : 'bg-emerald-500 text-white');
     el.style.gridColumn = POS[n][0]; el.style.gridRow = POS[n][1];
-    el.innerHTML = `<span class="text-3xl font-bold">${n}</span><span class="text-xs opacity-90">${m ? '🔧 ' + t('repairLabel') : TYPES(n)}</span><span class="print-only text-xs font-bold">${t(b ? 'stBooked' : m ? 'stRepair' : 'stFree')}</span>${b ? '<span class="print-only text-[10px]">' + esc(b.customer_name) + '</span>' : ''}`;
+    
+    let extraTag = (b && b.extra_bed === 1) ? `<span class="text-[10px] bg-amber-200 text-amber-900 font-bold px-1 rounded mt-0.5 shadow-sm">🛏️ เตียงเสริม</span>` : '';
+    el.innerHTML = `<span class="text-3xl font-bold">${n}</span><span class="text-xs opacity-90">${m ? '🔧 ' + t('repairLabel') : TYPES(n)}</span>${extraTag}<span class="print-only text-xs font-bold">${t(b ? 'stBooked' : m ? 'stRepair' : 'stFree')}</span>${b ? '<span class="print-only text-[10px]">' + esc(b.customer_name) + '</span>' : ''}`;
     el.onclick = () => b ? openDetails(b) : m ? openMaintDetails(m) : openForm(n);
     L.appendChild(el);
   }
@@ -399,7 +407,6 @@ function render() {
   $('printDate').textContent = t('stayDate') + ': ' + d;
 }
 
-/* ---------- Daily availability summary (used in daily view and monthly view) ---------- */
 function buildSummary(el, d) {
   const free = [], st = { booked: 0, repair: 0 };
   for (let n = 1; n <= 12; n++) {
@@ -416,7 +423,6 @@ function buildSummary(el, d) {
   </div>`;
 }
 
-/* ---------- Details modal ---------- */
 let currentBooking = null, currentMaint = null, editingMaintId = null;
 function setCancelLabel(k) { const b = $('cancelBtn'); b.dataset.i18n = k; b.textContent = t(k); }
 function openMaintDetails(m) {
@@ -435,17 +441,21 @@ function openDetails(b) {
   currentBooking = b; currentMaint = null; setCancelLabel('cancelBooking'); $('cancelErr').classList.add('hidden');
   $('dTitle').textContent = `${t('houseWord')} ${b.house_number} · ${b.booking_id}`;
   const rows = [[t('name'), b.customer_name], [t('phone'), b.phone_number], [t('checkIn'), start(b)], [t('checkOut'), end(b)],
-    [t('extraBed'), b.extra_bed ? t('yes') : t('no')], [t('purpose'), b.purpose || '-']];
+    [t('extraBed'), b.extra_bed === 1 ? `${t('yes')} (+400/คืน)` : t('no')], [t('purpose'), b.purpose || '-']];
   if (b.house_number) {
     const nn = nightsBetween(b.check_in_date, b.check_out_date), r = bookingRate(b);
-    rows.splice(4, 0, [t('roomType'), typeFull(b.house_number)], [t('nights'), nn],
-      [t('rate'), money(r) + ' / ' + t('perNight')], [t('totalCost'), money(b.total_price != null ? b.total_price : nn * r)]);
+    const roomCost = nn * r;
+    const extraCost = b.extra_bed === 1 ? nn * EXTRA_BED_RATE : 0;
+    const total = b.total_price != null ? b.total_price : (roomCost + extraCost);
+    rows.splice(4, 0, [t('roomType'), typeFull(b.house_number)], [t('nights'), nn], [t('roomCost'), money(roomCost)]);
+    if (b.extra_bed === 1) rows.splice(7, 0, [t('extraBedCost'), money(extraCost)]);
+    rows.splice(rows.length - 1, 0, [t('totalCost'), money(total)]);
   }
   $('dBody').innerHTML = '';
   rows.forEach(([k, v]) => {
     const dt = document.createElement('dt'); dt.className = 'text-stone-500'; dt.textContent = k;
-    const dd = document.createElement('dd'); dd.textContent = v;   // textContent = safe from HTML injection
-    if (k === t('totalCost')) dd.className = 'font-bold';
+    const dd = document.createElement('dd'); dd.textContent = v;
+    if (k === t('totalCost')) dd.className = 'font-bold text-emerald-800';
     $('dBody').append(dt, dd);
   });
   $('detailModal').classList.remove('hidden');
@@ -480,8 +490,9 @@ $('cancelBtn').onclick = async () => {
   btn.disabled = false; btn.textContent = label;
 };
 
-/* ---------- Form modal ---------- */
 const F = () => $('bookForm').elements;
+let lastNightsDuration = 1;
+
 function openForm(house, b) {
   $('bookForm').reset(); $('formErr').classList.add('hidden');
   const f = F(), d = $('dateSel').value;
@@ -498,10 +509,27 @@ function openForm(house, b) {
   }
   f.check_in_date.min = addDays(today, -30); f.check_in_date.max = maxDate;
   f.check_out_date.max = addDays(maxDate, 1);
+  lastNightsDuration = nightsBetween(f.check_in_date.value, f.check_out_date.value) || 1;
   updateExtra();
   $('formModal').classList.remove('hidden');
 }
-// Disable extra bed if capacity for the chosen range is exhausted
+
+// Smart Check-out Date Auto-Shift
+$('ciDateInput').addEventListener('change', () => {
+  const f = F();
+  const ci = f.check_in_date.value;
+  if (ci) {
+    f.check_out_date.value = addDays(ci, lastNightsDuration);
+    updateExtra();
+  }
+});
+$('coDateInput').addEventListener('change', () => {
+  const f = F();
+  const nn = nightsBetween(f.check_in_date.value, f.check_out_date.value);
+  if (nn > 0) lastNightsDuration = nn;
+  updateExtra();
+});
+
 function updateExtra() {
   const f = F();
   const probe = { check_in_date: f.check_in_date.value, check_in_time: f.check_in_time.value,
@@ -509,20 +537,33 @@ function updateExtra() {
   const used = bookings.filter(b => b.extra_bed === 1 && b.booking_id !== editingId && start(probe) < end(b) && end(probe) > start(b)).length;
   const left = Math.max(0, MAX_EXTRA - used);
   $('extraBed').disabled = left === 0;
-  if (left === 0) $('extraBed').checked = false;
-  $('extraHint').textContent = '(' + t('leftFor').replace('{n}', left).replace('{m}', MAX_EXTRA) + ')';
+  if (left === 0) {
+    $('extraBed').checked = false;
+    $('extraHint').textContent = `(${t('bedFullWarning')})`;
+    $('extraHint').className = 'text-red-600 font-bold';
+  } else {
+    $('extraHint').textContent = '(' + t('leftFor').replace('{n}', left).replace('{m}', MAX_EXTRA) + ')';
+    $('extraHint').className = 'text-stone-500';
+  }
   updatePrice();
 }
-// Nights + total room cost, recalculated whenever the house or dates change
+
 function updatePrice() {
   const f = F(), n = Number(f.house_number.value) || 0;
   const nn = nightsBetween(f.check_in_date.value, f.check_out_date.value);
-  let html = `<div>${t('nights')}: <b>${nn}</b></div>`;
+  const isExtra = f.extra_bed.checked;
+  let html = `<div>${t('nights')}: <b>${nn}</b> ${t('perNight')}</div>`;
   const orig = editingId && bookings.find(x => x.booking_id === editingId);
-  const rate = n ? ((orig && orig.house_number === n && orig.rate_per_night) || RATE(n)) : 0;   // editing keeps the saved rate
-  if (n) html += `<div>${typeFull(n)} · ${t('rate')}: ${money(rate)} / ${t('perNight')}</div>
-    <div class="font-bold">${t('totalCost')}: ${money(nn * rate)}</div>`;
-  else html += `<div class="text-stone-500">${t('pickHouse')}</div>`;
+  const rate = n ? ((orig && orig.house_number === n && orig.rate_per_night) || RATE(n)) : 0;
+  const roomCost = nn * rate;
+  const extraCost = isExtra ? nn * EXTRA_BED_RATE : 0;
+  const total = roomCost + extraCost;
+
+  if (n) {
+    html += `<div>${typeFull(n)} · ${t('rate')}: ${money(rate)} / ${t('perNight')} (${money(roomCost)})</div>`;
+    if (isExtra) html += `<div class="text-amber-700 font-medium">🛏️ ${t('extraBedCost')}: ${money(EXTRA_BED_RATE)} × ${nn} คืน = ${money(extraCost)}</div>`;
+    html += `<div class="font-bold text-base mt-1 border-t pt-1">${t('totalCost')}: ${money(total)}</div>`;
+  } else html += `<div class="text-stone-500">${t('pickHouse')}</div>`;
   $('priceBox').innerHTML = html;
 }
 
@@ -548,7 +589,6 @@ $('bookForm').addEventListener('submit', async e => {
   btn.disabled = false; btn.textContent = t('save');
 });
 
-/* ---------- Maintenance (repair) form ---------- */
 function openMaintForm(house, m) {
   const f = $('maintForm').elements, d = $('dateSel').value;
   $('maintForm').reset(); $('maintErr').classList.add('hidden');
@@ -580,16 +620,14 @@ $('maintForm').addEventListener('submit', async e => {
   btn.disabled = false; btn.textContent = t('save');
 });
 
-/* ---------- Monthly overview ---------- */
 let mY = 0, mM = 0, mSel = null;
 const pad2 = n => String(n).padStart(2, '0');
 const ymd = (y, m, d) => `${y}-${pad2(m + 1)}-${pad2(d)}`;
 const WEEKDAYS = { th: ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'], en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] };
 
-// Monthly view is limited to last month, this month and the next 6 months
 const mIdx = (y, m) => y * 12 + m;
 const [tY, tM] = today.split('-').map(Number);
-const MIN_M = mIdx(tY, tM - 1 - 1), MAX_M = mIdx(tY, tM - 1 + 6);   // tM is 1-based
+const MIN_M = mIdx(tY, tM - 1 - 1), MAX_M = mIdx(tY, tM - 1 + 6);
 function openMonth() {
   const [y, m] = $('dateSel').value.split('-').map(Number);
   const idx = Math.min(MAX_M, Math.max(MIN_M, mIdx(y, m - 1)));
@@ -632,54 +670,64 @@ function renderMonth() {
   }
   $('mGrid').innerHTML = html + '</div>';
 
-  // selected-day availability summary
   buildSummary($('mDay'), mSel);
 
-  // table of bookings still in the system for this month (per-booking income = saved rate x nights in this month)
   const ms = ymd(mY, mM, 1), me = ymd(mY, mM, days);
   const nx = new Date(mY, mM + 1, 1), msNext = ymd(nx.getFullYear(), nx.getMonth(), 1);
   const inMonth = (ci, co) => nightsBetween(ci > ms ? ci : ms, co < msNext ? co : msNext);
   const rows = []; let noHouse = 0;
+  
+  const showIncome = userRole === 'owner';
+
   bookings.filter(b => b.check_in_date <= me && b.check_out_date > ms)
     .sort((a, b) => start(a) < start(b) ? -1 : 1).forEach(b => {
       const nn = inMonth(b.check_in_date, b.check_out_date);
       let amt = '-';
-      if (b.house_number) amt = (nn * bookingRate(b)).toLocaleString('en-US'); else noHouse++;
-      rows.push([b.house_number || '-', esc(b.customer_name), start(b), end(b), nn, amt]);
+      if (b.house_number) {
+        const extraCost = b.extra_bed === 1 ? nn * EXTRA_BED_RATE : 0;
+        amt = ((nn * bookingRate(b)) + extraCost).toLocaleString('en-US');
+      } else noHouse++;
+      
+      if (showIncome) rows.push([b.house_number || '-', esc(b.customer_name), start(b), end(b), nn, amt]);
+      else rows.push([b.house_number || '-', esc(b.customer_name), start(b), end(b), nn]);
     });
-  maint.filter(x => x.start_date <= me && x.end_date >= ms).forEach(x =>
-    rows.push([x.house_number, '🔧 ' + t('repairLabel') + (x.note ? ' – ' + esc(x.note) : ''), x.start_date, x.end_date, '-', '-']));
+  maint.filter(x => x.start_date <= me && x.end_date >= ms).forEach(x => {
+    if (showIncome) rows.push([x.house_number, '🔧 ' + t('repairLabel') + (x.note ? ' – ' + esc(x.note) : ''), x.start_date, x.end_date, '-', '-']);
+    else rows.push([x.house_number, '🔧 ' + t('repairLabel') + (x.note ? ' – ' + esc(x.note) : ''), x.start_date, x.end_date, '-']);
+  });
 
-  // Money totals come from the DATABASE (calculated on the server from the archive + current bookings)
-  if (!incomeMonthly) {
+  // ปล่อยว่างเปล่าเลยสำหรับบัญชีที่ไม่ใช่ Owner
+  if (!showIncome) {
+    $('mIncome').innerHTML = '';
+  } else if (!incomeMonthly) {
     $('mIncome').innerHTML = `<p class="text-sm text-red-600">${t('outdated')}</p>`;
   } else {
     const im = incomeMonthly[`${mY}-${pad2(mM + 1)}`] ||
       { room_income: 0, nights_sold: 0, occupancy_pct: 0, single_income: 0, double_income: 0 };
     $('mIncome').innerHTML = `<div class="rounded border bg-white p-3 text-sm space-y-1">
-      <div class="font-bold text-base">${t('monthIncome')}: ${money(im.room_income)}</div>
+      <div class="font-bold text-base text-emerald-800">${t('monthIncome')}: ${money(im.room_income)}</div>
       <div>${t('nightsSold')}: ${im.nights_sold} · ${t('occupancy')}: ${im.occupancy_pct}%</div>
-      <div>${t('singleCat')}: ${money(im.single_income)} · ${t('doubleCat')}: ${money(im.double_income)}</div>
       <div class="text-xs text-stone-500">${t('incomeNote')}${noHouse ? ' · ' + t('noHouseNote').replace('{n}', noHouse) : ''}</div>
     </div>`;
   }
-  const partial = ms < addDays(today, -30);   // older data lives in the archive, so the table is incomplete
-  $('mList').innerHTML = (rows.length
+
+  const ths = showIncome
+    ? [t('colHouse'), t('colName'), t('checkIn'), t('checkOut'), t('colNightsM'), t('colIncomeM')]
+    : [t('colHouse'), t('colName'), t('checkIn'), t('checkOut'), t('colNightsM')];
+
+  $('mList').innerHTML = rows.length
     ? `<table class="w-full text-sm border-collapse"><thead><tr class="bg-stone-100 text-left">` +
-      [t('colHouse'), t('colName'), t('checkIn'), t('checkOut'), t('colNightsM'), t('colIncomeM')].map(c => `<th class="border px-2 py-1">${c}</th>`).join('') +
+      ths.map(c => `<th class="border px-2 py-1">${c}</th>`).join('') +
       `</tr></thead><tbody>` + rows.map(r => '<tr>' + r.map(c => `<td class="border px-2 py-1">${c}</td>`).join('') + '</tr>').join('') + `</tbody></table>`
-    : `<p class="text-sm text-stone-500">${t('noItems')}</p>`) +
-    (partial ? `<p class="text-xs text-stone-500 mt-1">${t('tableNote')}</p>` : '');
+    : `<p class="text-sm text-stone-500">${t('noItems')}</p>`;
 }
-// Jump to a day in the main (daily) view, keeping it inside the date picker's limits
+
 function gotoDay(d) {
   const ds = $('dateSel');
   ds.value = d < ds.min ? ds.min : d > ds.max ? ds.max : d;
   $('monthModal').classList.add('hidden');
   render();
 }
-// Select a day WITHOUT rebuilding the grid (a rebuild between the two clicks of a double-click
-// made some browsers drop the double-click, so selection only toggles classes and the summary)
 function selectDay(d) {
   mSel = d;
   $('mGrid').querySelectorAll('[data-day]').forEach(c => {
@@ -688,8 +736,6 @@ function selectDay(d) {
   });
   buildSummary($('mDay'), d);
 }
-// One click = select. Two clicks/taps on the same day within 0.5 s = open it in the daily view.
-// (Timing is measured on 'click' events, so it also works for taps on touch screens.)
 let lastTap = { d: null, t: 0 };
 $('mGrid').addEventListener('click', e => {
   const b = e.target.closest('[data-day]'); if (!b) return;
@@ -702,7 +748,6 @@ $('monthOpen').onclick = openMonth;
 $('mPrev').onclick = () => shiftMonth(-1);
 $('mNext').onclick = () => shiftMonth(1);
 
-/* ---------- Print / Save as PDF (CSS @media print decides what is shown) ---------- */
 function doPrint(mode) {
   document.body.classList.remove('print-daily', 'print-month');
   document.body.classList.add('print-' + mode);
@@ -711,7 +756,6 @@ function doPrint(mode) {
 $('printDaily').onclick = () => doPrint('daily');
 $('printMonth').onclick = () => doPrint('month');
 
-/* ---------- Init ---------- */
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => document.querySelectorAll('#formModal,#detailModal,#maintModal,#monthModal').forEach(m => m.classList.add('hidden')));
 const ds = $('dateSel'); ds.min = addDays(today, -30); ds.max = maxDate; ds.value = today;
 ds.addEventListener('change', render);

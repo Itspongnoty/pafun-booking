@@ -18,17 +18,24 @@ const TZ = 'Asia/Bangkok';
 const MAX_EXTRA_BEDS = 2;      // resort-wide capacity
 const RETENTION_DAYS = 30;     // keep history this long
 const HORIZON_MONTHS = 6;      // how far ahead bookings are allowed
-const API_VERSION = 4;         // frontend checks this to detect an outdated deployment
+const API_VERSION = 6;         // frontend checks this to detect an outdated deployment
 const MAINT_SHEET = 'Maintenance';   // rooms closed for repair
 const MHEADERS = ['maintenance_id', 'house_number', 'start_date', 'end_date', 'note', 'created_at'];
+const RATES = { single: 890, double: 990 };   // THB / night: houses 1-7 = single, houses 8-12 = double/special
+const INCOME_SHEET = 'Income';                // permanent archive: one row per booking per month
+const INCOME_MONTHLY = 'Income_Monthly';      // totals per month (rebuilt every night)
+const IHEADERS = ['booking_id', 'month', 'house_number', 'house_type', 'nights', 'rate_per_night', 'income', 'archived_at'];
 const HEADERS = ['booking_id', 'customer_name', 'phone_number', 'house_number', 'house_type',
   'check_in_date', 'check_in_time', 'check_out_date', 'check_out_time',
-  'extra_bed', 'purpose', 'created_at'];
+  'extra_bed', 'purpose', 'created_at', 'rate_per_night', 'total_price'];
 
 /* ---------- One-time setup ---------- */
 function setup() {
   maintSheet_();
   textFormat_(sheet_()); // creates the "Bookings" sheet if missing; forces text format on key columns
+  backfillPrices();      // fill rate/total for bookings saved before prices were stored
+  incomeSheet_();
+  rebuildIncomeMonthly_();
 
   // Daily trigger at midnight (replace existing ones to avoid duplicates)
   ScriptApp.getProjectTriggers()
@@ -48,6 +55,9 @@ function sheet_() {
     sh.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]).setFontWeight('bold');
     sh.setFrozenRows(1);
     textFormat_(sh);
+  } else if (!sh.getRange(1, 13).getValue()) {
+    // upgrade an older sheet: add the price columns
+    sh.getRange(1, 13, 1, 2).setValues([['rate_per_night', 'total_price']]).setFontWeight('bold');
   }
   return sh;
 }
@@ -75,6 +85,127 @@ function readMaint_() {
     return o;
   });
 }
+
+/* ---------- Pricing & income ---------- */
+const rateFor_ = n => n <= 7 ? RATES.single : RATES.double;
+
+function addDaysStr_(s, n) {
+  const d = new Date(s + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function nightsBetween_(ci, co) {
+  let n = 0;
+  for (let d = ci; d < co && n < 1000; d = addDaysStr_(d, 1)) n++;
+  return n;
+}
+
+// Splits a stay into per-month pieces by NIGHT: [{month:'2026-10', nights, rate, income}, ...]
+function allocate_(b) {
+  if (!b.house_number) return [];
+  const rate = b.rate_per_night || rateFor_(b.house_number);
+  const by = {};
+  for (let d = b.check_in_date, i = 0; d < b.check_out_date && i < 1000; d = addDaysStr_(d, 1), i++) {
+    const m = d.slice(0, 7);
+    by[m] = (by[m] || 0) + 1;
+  }
+  return Object.keys(by).sort().map(m => ({ month: m, nights: by[m], rate: rate, income: by[m] * rate }));
+}
+
+// Writes one booking row. Columns A-L are text (keeps leading 0 in phones), M-N are numbers.
+function putBooking_(sh, rowIdx, b) {
+  sh.getRange(rowIdx, 1, 1, 12).setNumberFormat('@');
+  sh.getRange(rowIdx, 13, 1, 2).setNumberFormat('0');
+  sh.getRange(rowIdx, 1, 1, HEADERS.length).setValues([HEADERS.map(h => b[h] == null ? '' : b[h])]);
+}
+
+// One-time: give bookings saved before prices existed a rate and total (current rates).
+function backfillPrices() {
+  const sh = sheet_(), last = sh.getLastRow();
+  if (last < 2) return;
+  const rows = sh.getRange(2, 1, last - 1, HEADERS.length).getDisplayValues();
+  const out = rows.map(r => {
+    if (r[12] !== '') return [Number(r[12]), r[13] === '' ? '' : Number(r[13])];
+    const house = Number(r[3]) || 0;
+    if (!house) return ['', ''];
+    const rate = rateFor_(house);
+    return [rate, nightsBetween_(r[5], r[7]) * rate];
+  });
+  sh.getRange(2, 13, last - 1, 2).setNumberFormat('0').setValues(out);
+}
+
+// Gets a sheet by name or creates it with headers; textCols are formatted as plain text.
+function ensureSheet_(name, headers, textCols) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(name);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    sh.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+    textCols.forEach(c => sh.getRange(c + ':' + c).setNumberFormat('@'));
+  }
+  return sh;
+}
+const incomeSheet_ = () => ensureSheet_(INCOME_SHEET, IHEADERS, ['A', 'B', 'H']);
+
+// Copies finished bookings into the permanent Income sheet (skips ones already archived).
+function archiveBookings_(list) {
+  if (!list.length) return;
+  const sh = incomeSheet_(), last = sh.getLastRow();
+  const done = {};
+  if (last >= 2) sh.getRange(2, 1, last - 1, 1).getDisplayValues().forEach(r => done[r[0]] = true);
+  const stamp = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd HH:mm:ss');
+  const rows = [];
+  list.forEach(b => {
+    if (done[b.booking_id]) return;
+    allocate_(b).forEach(a => rows.push([b.booking_id, a.month, b.house_number, houseType_(b.house_number),
+      a.nights, a.rate, a.income, stamp]));
+  });
+  if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, IHEADERS.length).setValues(rows);
+}
+
+// Monthly income = archived income (Income sheet) + bookings still in the Bookings sheet.
+// Returns [{month, nights_sold, room_income, bookings, occupancy_pct, single_income, double_income}].
+// Future months are expected income from confirmed bookings (cancellations correct it).
+function computeIncomeMonthly_(bookings) {
+  const tot = {};
+  const add = (m, house, nights, income) => {
+    const o = tot[m] || (tot[m] = { nights: 0, income: 0, bookings: 0, single: 0, double: 0 });
+    o.nights += nights; o.income += income; o.bookings++;
+    if (house <= 7) o.single += income; else o.double += income;
+  };
+  const ish = incomeSheet_(), il = ish.getLastRow();
+  if (il >= 2) {
+    const months = ish.getRange(2, 2, il - 1, 1).getDisplayValues();
+    const nums = ish.getRange(2, 3, il - 1, 5).getValues();   // house, type, nights, rate, income
+    months.forEach((m, i) => add(m[0], Number(nums[i][0]) || 0, Number(nums[i][2]) || 0, Number(nums[i][4]) || 0));
+  }
+  bookings.forEach(b => allocate_(b).forEach(a => add(a.month, b.house_number, a.nights, a.income)));
+  return Object.keys(tot).sort().map(m => {
+    const days = new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0)).getUTCDate();
+    return { month: m, nights_sold: tot[m].nights, room_income: tot[m].income, bookings: tot[m].bookings,
+      occupancy_pct: Math.round(tot[m].nights / (12 * days) * 1000) / 10,
+      single_income: tot[m].single, double_income: tot[m].double };
+  });
+}
+
+const IM_HEADERS = ['month', 'nights_sold', 'room_income', 'bookings', 'occupancy_pct', 'single_income', 'double_income'];
+function rebuildIncomeMonthly_() {
+  const list = computeIncomeMonthly_(readAll_());
+  const sh = ensureSheet_(INCOME_MONTHLY, IM_HEADERS, ['A']);
+  sh.clearContents();
+  sh.getRange(1, 1, 1, IM_HEADERS.length).setValues([IM_HEADERS]).setFontWeight('bold');
+  if (list.length) sh.getRange(2, 1, list.length, IM_HEADERS.length)
+    .setValues(list.map(x => IM_HEADERS.map(h => x[h])));
+}
+
+// Called after every change so the Income sheets exist and stay current (never blocks a save).
+function refreshIncome_() {
+  try { rebuildIncomeMonthly_(); } catch (err) { console.error('Income refresh failed: ' + err); }
+}
+
+// Run from the editor any time to refresh the monthly income table immediately.
+function rebuildIncome() { rebuildIncomeMonthly_(); }
 
 // Plain-text format on whole columns so Sheets never converts phones/dates/times
 // (a phone like 0918655134 would otherwise lose its leading 0).
@@ -113,6 +244,8 @@ function readAll_() {
     HEADERS.forEach((h, i) => o[h] = r[i]);
     o.house_number = o.house_number ? Number(o.house_number) : null;
     o.extra_bed = Number(o.extra_bed) || 0;
+    o.rate_per_night = o.rate_per_night === '' ? null : Number(o.rate_per_night);
+    o.total_price = o.total_price === '' ? null : Number(o.total_price);
     return o;
   });
 }
@@ -171,7 +304,11 @@ function doPost(e) {
   if (!validToken_(p.token)) return json_({ ok: false, error: 'UNAUTHORIZED' });
   if (action === 'logout') { CacheService.getScriptCache().remove('tok_' + p.token); return json_({ ok: true }); }
   if (action === 'list') {
-    try { return json_({ ok: true, bookings: readAll_(), max_extra_beds: MAX_EXTRA_BEDS, api_version: API_VERSION, maintenance: readMaint_() }); }
+    try {
+      if (!SpreadsheetApp.getActiveSpreadsheet().getSheetByName(INCOME_MONTHLY)) refreshIncome_();
+      const bks = readAll_();
+      return json_({ ok: true, bookings: bks, max_extra_beds: MAX_EXTRA_BEDS, api_version: API_VERSION,
+        maintenance: readMaint_(), income_monthly: computeIncomeMonthly_(bks) }); }
     catch (err) { return json_({ ok: false, error: String(err) }); }
   }
 
@@ -204,6 +341,7 @@ function doPost(e) {
       const idx = ids.findIndex(r => r[0] === id);
       if (idx === -1) throw new Error('Booking ' + id + ' was not found (maybe already cancelled).');
       sh0.deleteRow(idx + 2);
+      refreshIncome_();
       SpreadsheetApp.flush();
       return json_({ ok: true, cancelled: id });
     }
@@ -263,6 +401,13 @@ function doPost(e) {
     }
 
     b.house_type = houseType_(b.house_number);
+    // Price snapshot, calculated on the server (never trusted from the page).
+    // When editing the same house the originally saved rate is kept, even if rates changed since.
+    if (b.house_number) {
+      const keep = orig && orig.house_number === b.house_number && orig.rate_per_night;
+      b.rate_per_night = keep ? orig.rate_per_night : rateFor_(b.house_number);
+      b.total_price = nightsBetween_(b.check_in_date, b.check_out_date) * b.rate_per_night;
+    } else { b.rate_per_night = null; b.total_price = null; }
     const sh = sheet_();
 
     if (editId) {
@@ -272,9 +417,7 @@ function doPost(e) {
       const ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getDisplayValues();
       const idx = ids.findIndex(r => r[0] === editId);
       if (idx === -1) throw new Error('Booking ' + editId + ' was not found.');
-      const r = sh.getRange(idx + 2, 1, 1, HEADERS.length);
-      r.setNumberFormat('@');
-      r.setValues([HEADERS.map(h => b[h] === null ? '' : b[h])]);
+      putBooking_(sh, idx + 2, b);
     } else {
       // --- Create: ID format BK-YYYYMMDD-XXX (XXX = running number for today) ---
       const today = Utilities.formatDate(new Date(), TZ, 'yyyyMMdd');
@@ -283,10 +426,9 @@ function doPost(e) {
         .reduce((m, x) => Math.max(m, Number(x.booking_id.slice(-3)) || 0), 0) + 1;
       b.booking_id = prefix + ('00' + seq).slice(-3);
       b.created_at = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd HH:mm:ss');
-      const rowRange = sh.getRange(sh.getLastRow() + 1, 1, 1, HEADERS.length);
-      rowRange.setNumberFormat('@');   // text format BEFORE writing so '0...' is kept
-      rowRange.setValues([HEADERS.map(h => b[h] === null ? '' : b[h])]);
+      putBooking_(sh, sh.getLastRow() + 1, b);
     }
+    refreshIncome_();
     SpreadsheetApp.flush();
     return json_({ ok: true, booking: b, updated: !!editId });
   } catch (err) {
@@ -353,11 +495,11 @@ function autoPurgeOldBookings() {
     for (let i = ends.length - 1; i >= 0; i--) if (ends[i][0] && ends[i][0] < cutoff0) msh.deleteRow(i + 2);
   }
   const sh = sheet_();
-  const last = sh.getLastRow();
-  if (last < 2) return;
   const cutoff = dayStr_(-RETENTION_DAYS);
-  const outDates = sh.getRange(2, 8, last - 1, 1).getDisplayValues(); // column H
-  for (let i = outDates.length - 1; i >= 0; i--) {   // bottom-up so row indexes stay valid
-    if (outDates[i][0] && outDates[i][0] < cutoff) sh.deleteRow(i + 2);
+  const all = readAll_();   // element i = sheet row i + 2
+  archiveBookings_(all.filter(b => b.check_out_date && b.check_out_date < cutoff));   // keep income BEFORE deleting
+  for (let i = all.length - 1; i >= 0; i--) {   // bottom-up so row indexes stay valid
+    if (all[i].check_out_date && all[i].check_out_date < cutoff) sh.deleteRow(i + 2);
   }
+  rebuildIncomeMonthly_();
 }
