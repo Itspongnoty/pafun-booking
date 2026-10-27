@@ -107,6 +107,14 @@
 <div id="formModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-10">
   <form id="bookForm" class="bg-white rounded-lg w-full max-w-md p-5 space-y-3 max-h-full overflow-y-auto">
     <h2 id="formTitle" class="text-lg font-bold" data-i18n="newBooking"></h2>
+    
+    <label class="block text-sm"><span data-i18n="bookingType"></span> *
+      <select name="booking_type" required class="mt-1 w-full border rounded px-2 py-1 bg-emerald-50 border-emerald-300 font-semibold text-emerald-900">
+        <option value="Booking" data-i18n="bookingChannel">📅 จองล่วงหน้า (Booking)</option>
+        <option value="Walk-in" data-i18n="walkInChannel">🚶‍♂️ Walk-in</option>
+      </select>
+    </label>
+
     <label class="block text-sm"><span data-i18n="name"></span> *<input name="customer_name" required class="mt-1 w-full border rounded px-2 py-1"></label>
     <label class="block text-sm"><span data-i18n="phone"></span> *<input name="phone_number" required inputmode="tel" class="mt-1 w-full border rounded px-2 py-1"></label>
     <label class="block text-sm"><span data-i18n="house"></span>
@@ -224,7 +232,8 @@ const I18N = {
     confirmMaint:'ยกเลิกช่วงปิดซ่อมนี้?', maintSaved:'บันทึกการปิดซ่อมแล้ว: ',
     maintUpdated:'อัปเดตการปิดซ่อมแล้ว: ', maintDeleted:'ยกเลิกการปิดซ่อมแล้ว: ', startLbl:'เริ่ม', endLbl:'สิ้นสุด', edit:'แก้ไข', updated:'อัปเดตการจองแล้ว: ',
     badResponse:'เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง', roomCost:'ค่าห้องพัก', extraBedCost:'ค่าเตียงเสริม',
-    bedFullWarning:'⚠️ เตียงเสริมเต็มแล้วสำหรับวันที่เลือก (0/2)'
+    bedFullWarning:'⚠️ เตียงเสริมเต็มแล้วสำหรับวันที่เลือก (0/2)',
+    bookingType:'ช่องทางการจอง', bookingChannel:'📅 จองล่วงหน้า (Booking)', walkInChannel:'🚶‍♂️ Walk-in'
   },
   en: {
     available:'Available', booked:'Booked (night of selected date)', office:'Office', walkway:'— walkway —',
@@ -252,7 +261,8 @@ const I18N = {
     confirmMaint:'Cancel this repair period?', maintSaved:'Repair saved: ',
     maintUpdated:'Repair updated: ', maintDeleted:'Repair cancelled: ', startLbl:'Start', endLbl:'End', edit:'Edit', updated:'Booking updated: ',
     badResponse:'Invalid server response', roomCost:'Room Cost', extraBedCost:'Extra Bed Cost',
-    bedFullWarning:'⚠️ Extra beds fully booked (0/2)'
+    bedFullWarning:'⚠️ Extra beds fully booked (0/2)',
+    bookingType:'Booking Channel', bookingChannel:'📅 Advance Booking', walkInChannel:'🚶‍♂️ Walk-in'
   }
 };
 let lang = 'th';
@@ -440,21 +450,32 @@ function openMaintDetails(m) {
 function openDetails(b) {
   currentBooking = b; currentMaint = null; setCancelLabel('cancelBooking'); $('cancelErr').classList.add('hidden');
   $('dTitle').textContent = `${t('houseWord')} ${b.house_number} · ${b.booking_id}`;
-  const rows = [[t('name'), b.customer_name], [t('phone'), b.phone_number], [t('checkIn'), start(b)], [t('checkOut'), end(b)],
-    [t('extraBed'), b.extra_bed === 1 ? `${t('yes')} (+400/คืน)` : t('no')], [t('purpose'), b.purpose || '-']];
+  
+  const channelText = b.booking_type === 'Walk-in' ? t('walkInChannel') : t('bookingChannel');
+  const rows = [
+    [t('bookingType'), channelText],
+    [t('name'), b.customer_name],
+    [t('phone'), b.phone_number],
+    [t('checkIn'), start(b)],
+    [t('checkOut'), end(b)],
+    [t('extraBed'), b.extra_bed === 1 ? `${t('yes')} (+400/คืน)` : t('no')],
+    [t('purpose'), b.purpose || '-']
+  ];
+
   if (b.house_number) {
     const nn = nightsBetween(b.check_in_date, b.check_out_date), r = bookingRate(b);
     const roomCost = nn * r;
     const extraCost = b.extra_bed === 1 ? nn * EXTRA_BED_RATE : 0;
     const total = b.total_price != null ? b.total_price : (roomCost + extraCost);
-    rows.splice(4, 0, [t('roomType'), typeFull(b.house_number)], [t('nights'), nn], [t('roomCost'), money(roomCost)]);
-    if (b.extra_bed === 1) rows.splice(7, 0, [t('extraBedCost'), money(extraCost)]);
+    rows.splice(5, 0, [t('roomType'), typeFull(b.house_number)], [t('nights'), nn], [t('roomCost'), money(roomCost)]);
+    if (b.extra_bed === 1) rows.splice(8, 0, [t('extraBedCost'), money(extraCost)]);
     rows.splice(rows.length - 1, 0, [t('totalCost'), money(total)]);
   }
   $('dBody').innerHTML = '';
   rows.forEach(([k, v]) => {
     const dt = document.createElement('dt'); dt.className = 'text-stone-500'; dt.textContent = k;
     const dd = document.createElement('dd'); dd.textContent = v;
+    if (k === t('bookingType')) dd.className = 'font-bold text-emerald-700';
     if (k === t('totalCost')) dd.className = 'font-bold text-emerald-800';
     $('dBody').append(dt, dd);
   });
@@ -500,6 +521,8 @@ function openForm(house, b) {
   $('toRepairBtn').classList.toggle('hidden', !!b);
   $('formTitle').dataset.i18n = b ? 'editBooking' : 'newBooking';
   $('formTitle').textContent = t(b ? 'editBooking' : 'newBooking');
+  
+  f.booking_type.value = b && b.booking_type ? b.booking_type : 'Booking';
   f.house_number.value = house || '';
   f.check_in_date.value = b ? b.check_in_date : d; f.check_out_date.value = b ? b.check_out_date : addDays(d, 1);
   if (b) {
@@ -572,6 +595,7 @@ $('bookForm').addEventListener('submit', async e => {
   e.preventDefault();
   const f = F(), btn = $('saveBtn'), err = $('formErr');
   const payload = {
+    booking_type: f.booking_type.value,
     customer_name: f.customer_name.value, phone_number: f.phone_number.value,
     house_number: f.house_number.value ? Number(f.house_number.value) : null,
     check_in_date: f.check_in_date.value, check_in_time: f.check_in_time.value,
@@ -696,7 +720,6 @@ function renderMonth() {
     else rows.push([x.house_number, '🔧 ' + t('repairLabel') + (x.note ? ' – ' + esc(x.note) : ''), x.start_date, x.end_date, '-']);
   });
 
-  // ปล่อยว่างเปล่าเลยสำหรับบัญชีที่ไม่ใช่ Owner
   if (!showIncome) {
     $('mIncome').innerHTML = '';
   } else if (!incomeMonthly) {
