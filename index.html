@@ -11,6 +11,35 @@
   .print-only{display:none}
   @page{margin:12mm}
   
+  /* Modal Animation */
+  @keyframes zoomIn {
+    0% { opacity: 0; transform: scale(0.96); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  @keyframes fadeIn {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+  
+  /* Lightweight 60fps Depth Transition for Main Dashboard */
+  @keyframes lightSpeedZoom {
+    0% {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .animate-zoom-in { animation: zoomIn 0.18s ease-out forwards; }
+  .animate-fade-in { animation: fadeIn 0.15s ease-out forwards; }
+  .animate-pro-zoom { 
+    animation: lightSpeedZoom 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
+    will-change: transform, opacity;
+  }
+
   /* ================= PRINT STYLING (HIGH CONTRAST) ================= */
   @media print{
     *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important}
@@ -32,7 +61,7 @@
     .m-sq{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important}
     .m-free{background:#f1f5f9 !important;color:#475569 !important;border:1px solid #cbd5e1 !important}
     .m-booked{background:#000000 !important;color:#ffffff !important;border:1px solid #000000 !important;font-weight:bold !important}
-    .m-repair{background:#fef3c7 !important;color:#92400e !important;border:1px dashed #b45309 !important}
+    .m-repair{background:#fef3c7 !important;color:#92400e !important;border:2px dashed #b45309 !important}
     
     .chip{border:1px solid #000 !important;background:#fff !important;color:#000 !important}
     table{font-size:11px}
@@ -46,7 +75,7 @@
 
 <!-- Login screen -->
 <div id="loginView" class="hidden min-h-screen flex items-center justify-center p-4">
-  <form id="loginForm" class="bg-white rounded-lg shadow w-full max-w-sm p-6 space-y-3">
+  <form id="loginForm" class="bg-white rounded-lg shadow w-full max-w-sm p-6 space-y-3 animate-zoom-in">
     <div class="flex justify-end">
       <div class="flex rounded overflow-hidden border border-emerald-300 bg-emerald-800 text-sm">
         <button type="button" data-lang="th" class="px-2 py-1">ไทย</button>
@@ -104,8 +133,8 @@
 </div>
 
 <!-- Booking form modal -->
-<div id="formModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-10">
-  <form id="bookForm" class="bg-white rounded-lg w-full max-w-md p-5 space-y-3 max-h-full overflow-y-auto">
+<div id="formModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-10 animate-fade-in">
+  <form id="bookForm" class="bg-white rounded-lg w-full max-w-md p-5 space-y-3 max-h-full overflow-y-auto animate-zoom-in">
     <h2 id="formTitle" class="text-lg font-bold" data-i18n="newBooking"></h2>
     
     <label class="block text-sm"><span data-i18n="bookingType"></span> *
@@ -140,8 +169,8 @@
 </div>
 
 <!-- Monthly overview modal -->
-<div id="monthModal" class="hidden fixed inset-0 bg-black/50 flex items-start justify-center p-2 sm:p-4 z-10 overflow-y-auto">
-  <div id="monthBox" class="bg-white rounded-lg w-full max-w-5xl p-4 my-2">
+<div id="monthModal" class="hidden fixed inset-0 bg-black/50 flex items-start justify-center p-2 sm:p-4 z-10 overflow-y-auto animate-fade-in">
+  <div id="monthBox" class="bg-white rounded-lg w-full max-w-5xl p-4 my-2 animate-zoom-in">
     <div class="print-only mb-2"><h2 class="text-xl font-bold">PLATFORM PAFUN · Pafun Cottage</h2></div>
     <div class="flex items-center justify-between gap-2 mb-2">
       <button id="mPrev" type="button" class="no-print text-sm border rounded px-3 py-1" data-i18n="prevMonth"></button>
@@ -167,8 +196,8 @@
 </div>
 
 <!-- Maintenance modal -->
-<div id="maintModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-10">
-  <form id="maintForm" class="bg-white rounded-lg w-full max-w-md p-5 space-y-3 max-h-full overflow-y-auto">
+<div id="maintModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-10 animate-fade-in">
+  <form id="maintForm" class="bg-white rounded-lg w-full max-w-md p-5 space-y-3 max-h-full overflow-y-auto animate-zoom-in">
     <h2 id="maintTitle" class="text-lg font-bold" data-i18n="maintTitle"></h2>
     <label class="block text-sm"><span data-i18n="house"></span> *
       <select name="house_number" required class="mt-1 w-full border rounded px-2 py-1"></select></label>
@@ -186,8 +215,8 @@
 </div>
 
 <!-- Details modal -->
-<div id="detailModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-10">
-  <div class="bg-white rounded-lg w-full max-w-sm p-5 space-y-2">
+<div id="detailModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-10 animate-fade-in">
+  <div class="bg-white rounded-lg w-full max-w-sm p-5 space-y-2 animate-zoom-in">
     <h2 id="dTitle" class="text-lg font-bold"></h2>
     <dl id="dBody" class="text-sm grid grid-cols-[110px_1fr] gap-y-1"></dl>
     <p id="cancelErr" class="hidden text-sm text-red-600"></p>
@@ -748,9 +777,20 @@ function renderMonth() {
 function gotoDay(d) {
   const ds = $('dateSel');
   ds.value = d < ds.min ? ds.min : d > ds.max ? ds.max : d;
+  
+  // Instantly close modal (no delay/jank)
   $('monthModal').classList.add('hidden');
+  
+  // Render daily data
   render();
+  
+  // Apply lightweight, GPU-accelerated transition (180ms)
+  const mainEl = document.querySelector('main');
+  mainEl.classList.remove('animate-pro-zoom');
+  void mainEl.offsetWidth; // Force Reflow
+  mainEl.classList.add('animate-pro-zoom');
 }
+
 function selectDay(d) {
   mSel = d;
   $('mGrid').querySelectorAll('[data-day]').forEach(c => {
