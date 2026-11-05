@@ -351,7 +351,7 @@ function doPost(e) {
       throw new Error('Invalid date format.');
     if (!timeRe.test(b.check_in_time) || !timeRe.test(b.check_out_time))
       throw new Error('Invalid time format.');
-    if (end_(b) <= start_(b)) throw new Error('Check-out must be after check-in.');
+    if (b.check_out_date <= b.check_in_date || end_(b) <= start_(b)) throw new Error('Check-out must be after check-in.');
 
     const editId = action === 'update' ? String(p.booking_id || '').trim() : '';
     const all = readAll_();
@@ -368,8 +368,11 @@ function doPost(e) {
     }
 
     if (b.extra_bed === 1) {
-      const used = existing.filter(x => x.extra_bed === 1 && overlaps_(b, x)).length;
-      if (used + 1 > MAX_EXTRA_BEDS) throw new Error('No extra beds left for these dates.');
+      for (let d = b.check_in_date, i = 0; d < b.check_out_date && i < 1000; d = addDaysStr_(d, 1), i++) {
+        const used = existing.filter(x => x.extra_bed === 1 && x.check_in_date <= d && x.check_out_date > d).length;
+        if (used >= MAX_EXTRA_BEDS) throw new Error('No extra beds left for these dates.');
+      }
+
     }
 
     b.house_type = houseType_(b.house_number);

@@ -244,7 +244,7 @@ const I18N = {
     available:'ว่าง', booked:'จองแล้ว (คืนของวันที่เลือก)', office:'ออฟฟิศ', walkway:'— ทางเดิน —',
     beds:'เตียงเสริมที่ว่าง', house:'หมายเลขห้อง', houseWord:'ห้อง', unassigned:'ยังไม่ระบุห้อง',
     single:'เตียงเดี่ยว', double:'เตียงคู่', special:'ห้องพิเศษ',
-    newBooking:'จองใหม่', name:'ชื่อลูกค้า', phone:'เบอร์โทรศัพท์',
+    newBooking:'จองใหม่', editBooking:'แก้ไขการจอง', name:'ชื่อลูกค้า', phone:'เบอร์โทรศัพท์',
     ciDate:'วันเช็คอิน', ciTime:'เวลาเช็คอิน', coDate:'วันเช็คเอาท์', coTime:'เวลาเช็คเอาท์',
     extraBed:'เตียงเสริม (+400 บาท/คืน)', leftFor:'เหลือ {n}/{m} ในช่วงวันที่เลือก', purpose:'วัตถุประสงค์ / หมายเหตุ',
     cancel:'ยกเลิก', save:'บันทึก', saving:'กำลังบันทึก…', close:'ปิด',
@@ -273,7 +273,7 @@ const I18N = {
     available:'Available', booked:'Booked (night of selected date)', office:'Office', walkway:'— walkway —',
     beds:'Available Extra Beds', house:'Room Number', houseWord:'Room', unassigned:'Unassigned',
     single:'Single Bed', double:'Double Bed', special:'Special Room',
-    newBooking:'New Booking', name:'Customer Name', phone:'Phone Number',
+    newBooking:'New Booking', editBooking:'Edit Booking', name:'Customer Name', phone:'Phone Number',
     ciDate:'Check-in Date', ciTime:'Check-in Time', coDate:'Check-out Date', coTime:'Check-out Time',
     extraBed:'Extra bed (+400 THB/night)', leftFor:'{n}/{m} left for these dates', purpose:'Purpose / Notes',
     cancel:'Cancel', save:'Save', saving:'Saving…', close:'Close',
@@ -449,6 +449,7 @@ function render() {
   }
   buildSummary($('summary'), d);
   $('printDate').textContent = t('stayDate') + ': ' + d;
+  if (!$('monthModal').classList.contains('hidden')) renderMonth();
 }
 
 function buildSummary(el, d) {
@@ -464,6 +465,7 @@ function buildSummary(el, d) {
     <div class="text-stone-600"><b>${t('bookedN')} ${st.booked}</b> (${t('bedSingleShort')} <b>${st.bs}</b> · ${t('bedDoubleShort')} <b>${st.bd}</b>) · 🔧 ${t('repairLabel')} ${st.repair}</div>
     <div>${t('singleCat')}: ${chips(free.filter(n => n <= 7))}</div>
     <div>${t('doubleCat')}: ${chips(free.filter(n => n >= 8))}</div>
+    ${(() => { const un = bookings.filter(b => !b.house_number && occupies(b, d)); return un.length ? `<div class="pt-1 border-t">${t('unassigned')}: ` + un.map(b => `<button type="button" data-bid="${esc(b.booking_id)}" class="chip inline-block rounded border border-amber-600 bg-amber-50 hover:bg-amber-100 text-amber-900 px-2 py-0.5 mx-0.5 font-semibold cursor-pointer">${esc(b.customer_name)} (${esc(b.booking_id)})</button>`).join('') + `</div>` : ''; })()}
   </div>`;
 }
 
@@ -483,7 +485,7 @@ function openMaintDetails(m) {
 }
 function openDetails(b) {
   currentBooking = b; currentMaint = null; setCancelLabel('cancelBooking'); $('cancelErr').classList.add('hidden');
-  $('dTitle').textContent = `${t('houseWord')} ${b.house_number} · ${b.booking_id}`;
+  $('dTitle').textContent = `${b.house_number ? t('houseWord') + ' ' + b.house_number : t('unassigned')} · ${b.booking_id}`;
   
   const channelText = b.booking_type === 'Walk-in' ? t('walkInChannel') : t('bookingChannel');
   const rows = [
@@ -565,7 +567,7 @@ function openForm(house, b) {
     f.extra_bed.checked = b.extra_bed === 1; f.purpose.value = b.purpose || '';
   }
   f.check_in_date.min = addDays(today, -30); f.check_in_date.max = maxDate;
-  f.check_out_date.max = addDays(maxDate, 1);
+  f.check_out_date.min = addDays(f.check_in_date.value, 1); f.check_out_date.max = addDays(maxDate, 1);
   lastNightsDuration = nightsBetween(f.check_in_date.value, f.check_out_date.value) || 1;
   updateExtra();
   $('formModal').classList.remove('hidden');
@@ -576,6 +578,7 @@ $('ciDateInput').addEventListener('change', () => {
   const f = F();
   const ci = f.check_in_date.value;
   if (ci) {
+    f.check_out_date.min = addDays(ci, 1);
     f.check_out_date.value = addDays(ci, lastNightsDuration);
     updateExtra();
   }
@@ -584,6 +587,7 @@ $('coDateInput').addEventListener('change', () => {
   const f = F();
   const nn = nightsBetween(f.check_in_date.value, f.check_out_date.value);
   if (nn > 0) lastNightsDuration = nn;
+  else if (f.check_in_date.value) f.check_out_date.value = addDays(f.check_in_date.value, 1);
   updateExtra();
 });
 
@@ -591,7 +595,11 @@ function updateExtra() {
   const f = F();
   const probe = { check_in_date: f.check_in_date.value, check_in_time: f.check_in_time.value,
                   check_out_date: f.check_out_date.value, check_out_time: f.check_out_time.value };
-  const used = bookings.filter(b => b.extra_bed === 1 && b.booking_id !== editingId && start(probe) < end(b) && end(probe) > start(b)).length;
+  let used = 0;
+  for (let d = probe.check_in_date, i = 0; d && probe.check_out_date && d < probe.check_out_date && i < 1000; d = addDays(d, 1), i++) {
+    const u = bookings.filter(b => b.extra_bed === 1 && b.booking_id !== editingId && occupies(b, d)).length;
+    if (u > used) used = u;
+  }
   const left = Math.max(0, MAX_EXTRA - used);
   $('extraBed').disabled = left === 0;
   if (left === 0) {
@@ -753,12 +761,16 @@ function renderMonth() {
         amt = ((nn * bookingRate(b)) + extraCost).toLocaleString('en-US');
       } else noHouse++;
       
-      if (showIncome) rows.push([b.house_number || '-', esc(b.customer_name), start(b), end(b), nn, amt]);
-      else rows.push([b.house_number || '-', esc(b.customer_name), start(b), end(b), nn]);
+      const cells = [b.house_number || t('unassigned'), esc(b.customer_name), start(b), end(b), nn];
+      if (showIncome) cells.push(amt);
+      rows.push({ attr: `data-bid="${esc(b.booking_id)}"`, cells });
+
     });
   maint.filter(x => x.start_date <= me && x.end_date >= ms).forEach(x => {
-    if (showIncome) rows.push([x.house_number, '🔧 ' + t('repairLabel') + (x.note ? ' – ' + esc(x.note) : ''), x.start_date, x.end_date, '-', '-']);
-    else rows.push([x.house_number, '🔧 ' + t('repairLabel') + (x.note ? ' – ' + esc(x.note) : ''), x.start_date, x.end_date, '-']);
+    const cells = [x.house_number, '🔧 ' + t('repairLabel') + (x.note ? ' – ' + esc(x.note) : ''), x.start_date, x.end_date, '-'];
+    if (showIncome) cells.push('-');
+    rows.push({ attr: `data-mid="${esc(x.maintenance_id)}"`, cells });
+
   });
 
   if (!showIncome) {
@@ -782,7 +794,7 @@ function renderMonth() {
   $('mList').innerHTML = rows.length
     ? `<table class="w-full text-sm border-collapse"><thead><tr class="bg-stone-100 text-left">` +
       ths.map(c => `<th class="border px-2 py-1">${c}</th>`).join('') +
-      `</tr></thead><tbody>` + rows.map(r => '<tr>' + r.map(c => `<td class="border px-2 py-1">${c}</td>`).join('') + '</tr>').join('') + `</tbody></table>`
+      `</tr></thead><tbody>` + rows.map(r => `<tr ${r.attr} class="cursor-pointer hover:bg-stone-50">` + r.cells.map(c => `<td class="border px-2 py-1">${c}</td>`).join('') + '</tr>').join('') + `</tbody></table>`
     : `<p class="text-sm text-stone-500">${t('noItems')}</p>`;
 }
 
@@ -831,7 +843,13 @@ function doPrint(mode) {
 $('printDaily').onclick = () => doPrint('daily');
 $('printMonth').onclick = () => doPrint('month');
 
-document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => document.querySelectorAll('#formModal,#detailModal,#maintModal,#monthModal').forEach(m => m.classList.add('hidden')));
+document.addEventListener('click', e => {
+  const bid = e.target.closest('[data-bid]')?.dataset.bid;
+  if (bid) { const b = bookings.find(x => x.booking_id === bid); if (b) openDetails(b); return; }
+  const mid = e.target.closest('[data-mid]')?.dataset.mid;
+  if (mid) { const m = maint.find(x => x.maintenance_id === mid); if (m) openMaintDetails(m); }
+});
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => (b.closest('#formModal,#detailModal,#maintModal,#monthModal') || $('monthModal')).classList.add('hidden'));
 const ds = $('dateSel'); ds.min = addDays(today, -30); ds.max = maxDate; ds.value = today;
 ds.addEventListener('change', render);
 applyLang();
