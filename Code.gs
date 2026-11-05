@@ -244,8 +244,8 @@ const TOKEN_TTL_SEC = 6 * 60 * 60; // 6 hours
 
 function login_(p) {
   const props = PropertiesService.getScriptProperties();
-  const adminUser = props.getProperty('ADMIN_USER') || 'admin';
-  const adminPass = props.getProperty('ADMIN_PASS') || 'admin1234';
+  const adminUser = props.getProperty('ADMIN_USER') || 'admin_pafun';
+  const adminPass = props.getProperty('ADMIN_PASS') || 'admin_pafun1234';
   const ownerUser = props.getProperty('OWNER_USER') || 'owner';
   const ownerPass = props.getProperty('OWNER_PASS') || 'owner1234_440';
 
