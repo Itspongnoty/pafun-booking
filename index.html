@@ -343,8 +343,19 @@ try { const s = localStorage.getItem('pafun_lang'); if (s === 'en' || s === 'th'
 const t = k => I18N[lang][k];
 const TYPES = n => t(n <= 7 ? 'single' : n <= 11 ? 'double' : 'special');
 
-const RATE = n => n <= 7 ? 890 : 990;
-const bookingRate = b => b.rate_per_night || RATE(b.house_number);
+const RATE_CHANGE_DATE = '2027-01-01';
+const RATE = (n, d) => (d && d >= RATE_CHANGE_DATE) ? (n <= 7 ? 990 : 1090) : (n <= 7 ? 890 : 990);
+const calcRoomCost = (n, ci, co) => {
+  if (!n || !ci || !co || co <= ci) return 0;
+  let sum = 0;
+  for (let d = ci, i = 0; d < co && i < 1000; d = addDays(d, 1), i++) sum += RATE(n, d);
+  return sum;
+};
+const rateLabel = (n, ci, co) => {
+  const r1 = RATE(n, ci), r2 = (co && co > ci) ? RATE(n, addDays(co, -1)) : r1;
+  return r1 === r2 ? money(r1) : `${r1.toLocaleString('en-US')}–${money(r2)}`;
+};
+const bookingRate = (b, d) => RATE(b.house_number, d || b.check_in_date);
 const typeFull = n => n === 12 ? t('specialFull') : TYPES(n);
 const money = n => n.toLocaleString('en-US') + ' ' + t('currency');
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -542,9 +553,9 @@ function openDetails(b) {
 
   if (b.house_number) {
     const nn = nightsBetween(b.check_in_date, b.check_out_date), r = bookingRate(b);
-    const roomCost = nn * r;
+    const roomCost = calcRoomCost(b.house_number, b.check_in_date, b.check_out_date);
     const extraCost = b.extra_bed === 1 ? nn * EXTRA_BED_RATE : 0;
-    const total = b.total_price != null ? b.total_price : (roomCost + extraCost);
+    const total = roomCost + extraCost;
     rows.splice(5, 0, [t('roomType'), typeFull(b.house_number)], [t('nights'), nn], [t('roomCost'), money(roomCost)]);
     if (b.extra_bed === 1) rows.splice(8, 0, [t('extraBedCost'), money(extraCost)]);
     rows.splice(rows.length - 1, 0, [t('totalCost'), money(total)]);
@@ -661,13 +672,13 @@ function updatePrice() {
   const isExtra = f.extra_bed.checked;
   let html = `<div>${t('nights')}: <b>${nn}</b> ${t('perNight')}</div>`;
   const orig = editingId && bookings.find(x => x.booking_id === editingId);
-  const rate = n ? ((orig && orig.house_number === n && orig.rate_per_night) || RATE(n)) : 0;
-  const roomCost = nn * rate;
+  const ci = f.check_in_date.value, co = f.check_out_date.value;
+  const roomCost = n ? calcRoomCost(n, ci, co) : 0;
   const extraCost = isExtra ? nn * EXTRA_BED_RATE : 0;
   const total = roomCost + extraCost;
 
   if (n) {
-    html += `<div>${typeFull(n)} · ${t('rate')}: ${money(rate)} / ${t('perNight')} (${money(roomCost)})</div>`;
+    html += `<div>${typeFull(n)} · ${t('rate')}: ${rateLabel(n, ci, co)} / ${t('perNight')} (${money(roomCost)})</div>`;
     if (isExtra) html += `<div class="text-amber-700 font-medium">🛏️ ${t('extraBedCost')}: ${money(EXTRA_BED_RATE)} × ${nn} คืน = ${money(extraCost)}</div>`;
     html += `<div class="font-bold text-base mt-1 border-t pt-1">${t('totalCost')}: ${money(total)}</div>`;
   } else html += `<div class="text-stone-500">${t('pickHouse')}</div>`;
@@ -800,7 +811,7 @@ function renderMonth() {
       let amt = '-';
       if (b.house_number) {
         const extraCost = b.extra_bed === 1 ? nn * EXTRA_BED_RATE : 0;
-        amt = ((nn * bookingRate(b)) + extraCost).toLocaleString('en-US');
+        amt = ((nn * bookingRate(b, ms)) + extraCost).toLocaleString('en-US');
       } else noHouse++;
       
       const cells = [b.house_number || t('unassigned'), esc(b.customer_name), start(b), end(b), nn];

@@ -12,7 +12,9 @@ const HORIZON_MONTHS = 6;      // how far ahead bookings are allowed
 const API_VERSION = 8;         // frontend checks this to detect an outdated deployment
 const MAINT_SHEET = 'Maintenance';   // rooms closed for repair
 const MHEADERS = ['maintenance_id', 'house_number', 'start_date', 'end_date', 'note', 'created_at'];
-const RATES = { single: 890, double: 990 };   // THB / night: rooms 1-7 = single, rooms 8-12 = double/special
+const RATES = { single: 890, double: 990 };   // THB / night (until 2026-12-31): rooms 1-7 = single, rooms 8-12 = double/special
+const RATES_2027 = { single: 990, double: 1090 }; // THB / night (from 2027-01-01 onwards)
+const RATE_CHANGE_DATE = '2027-01-01';
 const INCOME_SHEET = 'Income';                // permanent archive
 const INCOME_MONTHLY = 'Income_Monthly';      // totals per month
 const IHEADERS = ['booking_id', 'month', 'house_number', 'house_type', 'nights', 'rate_per_night', 'income', 'archived_at'];
@@ -78,7 +80,15 @@ function readMaint_() {
   });
 }
 
-const rateFor_ = n => n <= 7 ? RATES.single : RATES.double;
+const rateFor_ = (n, d) => {
+  const tbl = (d && d >= RATE_CHANGE_DATE) ? RATES_2027 : RATES;
+  return n <= 7 ? tbl.single : tbl.double;
+};
+function roomCost_(n, ci, co) {
+  let sum = 0;
+  for (let d = ci, i = 0; d < co && i < 1000; d = addDaysStr_(d, 1), i++) sum += rateFor_(n, d);
+  return sum;
+}
 
 function addDaysStr_(s, n) {
   const d = new Date(s + 'T00:00:00Z');
@@ -93,16 +103,17 @@ function nightsBetween_(ci, co) {
 
 function allocate_(b) {
   if (!b.house_number) return [];
-  const rate = b.rate_per_night || rateFor_(b.house_number);
+  const rate = rateFor_(b.house_number, b.check_in_date);
   const by = {};
   for (let d = b.check_in_date, i = 0; d < b.check_out_date && i < 1000; d = addDaysStr_(d, 1), i++) {
     const m = d.slice(0, 7);
     by[m] = (by[m] || 0) + 1;
   }
   return Object.keys(by).sort().map(m => {
-    const roomInc = by[m] * rate;
+    const mRate = rateFor_(b.house_number, m + '-01');
+    const roomInc = by[m] * mRate;
     const extraInc = b.extra_bed === 1 ? by[m] * EXTRA_BED_RATE : 0;
-    return { month: m, nights: by[m], rate: rate, income: roomInc + extraInc };
+    return { month: m, nights: by[m], rate: mRate, income: roomInc + extraInc };
   });
 }
 
@@ -121,10 +132,11 @@ function backfillPrices() {
     if (r[12] !== '') return [Number(r[12]), r[13] === '' ? '' : Number(r[13])];
     const house = Number(r[3]) || 0;
     if (!house) return ['', ''];
-    const rate = rateFor_(house);
+    const rate = rateFor_(house, r[5]);
+    const roomCost = roomCost_(house, r[5], r[7]);
     const nn = nightsBetween_(r[5], r[7]);
     const isExtra = Number(r[9]) === 1;
-    return [rate, (nn * rate) + (isExtra ? nn * EXTRA_BED_RATE : 0)];
+    return [rate, roomCost + (isExtra ? nn * EXTRA_BED_RATE : 0)];
   });
   sh.getRange(2, 13, last - 1, 2).setNumberFormat('0').setValues(out);
 }
@@ -216,6 +228,11 @@ function readAll_() {
     o.rate_per_night = o.rate_per_night === '' ? null : Number(o.rate_per_night);
     o.total_price = o.total_price === '' ? null : Number(o.total_price);
     o.booking_type = o.booking_type || 'Booking';
+    if (o.house_number && o.check_in_date && o.check_out_date) {
+      o.rate_per_night = rateFor_(o.house_number, o.check_in_date);
+      const nn = nightsBetween_(o.check_in_date, o.check_out_date);
+      o.total_price = roomCost_(o.house_number, o.check_in_date, o.check_out_date) + (o.extra_bed === 1 ? nn * EXTRA_BED_RATE : 0);
+    }
     return o;
   });
 }
@@ -411,10 +428,10 @@ function doPost(e) {
     b.house_type = houseType_(b.house_number);
     if (b.house_number) {
       const keep = orig && orig.house_number === b.house_number && orig.rate_per_night;
-      b.rate_per_night = keep ? orig.rate_per_night : rateFor_(b.house_number);
+      b.rate_per_night = rateFor_(b.house_number, b.check_in_date);
       const nn = nightsBetween_(b.check_in_date, b.check_out_date);
       const extraCost = b.extra_bed === 1 ? nn * EXTRA_BED_RATE : 0;
-      b.total_price = (nn * b.rate_per_night) + extraCost;
+      b.total_price = roomCost_(b.house_number, b.check_in_date, b.check_out_date) + extraCost;
     } else { b.rate_per_night = null; b.total_price = null; }
     const sh = sheet_();
 
