@@ -242,6 +242,37 @@ function doGet(e) {
 /* ---------- Authentication & Roles ---------- */
 const TOKEN_TTL_SEC = 6 * 60 * 60; // 6 hours
 
+function creds_() {
+  const props = PropertiesService.getScriptProperties();
+  return {
+    adminUser: props.getProperty('ADMIN_USER') || 'admin_pafun',
+    adminPass: props.getProperty('ADMIN_PASS') || 'admin_pafun1234',
+    ownerUser: props.getProperty('OWNER_USER') || 'owner',
+    ownerPass: props.getProperty('OWNER_PASS') || 'owner1234_440'
+  };
+}
+
+function updateCredentials_(p, role) {
+  if (role !== 'owner') return json_({ ok: false, error: 'FORBIDDEN' });
+  const c = creds_();
+  if (String(p.current_password || '') !== c.ownerPass) {
+    Utilities.sleep(1000);
+    return json_({ ok: false, error: 'WRONG_PASSWORD' });
+  }
+  const ownerUser = String(p.owner_user || '').trim();
+  const adminUser = String(p.admin_user || '').trim();
+  if (!ownerUser || !adminUser) return json_({ ok: false, error: 'Username is required.' });
+  if (ownerUser === adminUser) return json_({ ok: false, error: 'SAME_USERNAME' });
+  const ownerPass = String(p.owner_pass || '') !== '' ? String(p.owner_pass) : c.ownerPass;
+  const adminPass = String(p.admin_pass || '') !== '' ? String(p.admin_pass) : c.adminPass;
+  if (ownerPass.length < 4 || adminPass.length < 4) return json_({ ok: false, error: 'SHORT_PASSWORD' });
+  PropertiesService.getScriptProperties().setProperties({
+    OWNER_USER: ownerUser, OWNER_PASS: ownerPass,
+    ADMIN_USER: adminUser, ADMIN_PASS: adminPass
+  });
+  return json_({ ok: true, accounts: { owner_user: ownerUser, admin_user: adminUser } });
+}
+
 function login_(p) {
   const props = PropertiesService.getScriptProperties();
   const adminUser = props.getProperty('ADMIN_USER') || 'admin_pafun';
@@ -292,11 +323,13 @@ function doPost(e) {
         ok: true, bookings: bks, max_extra_beds: MAX_EXTRA_BEDS, api_version: API_VERSION,
         maintenance: readMaint_(),
         role: role,
-        income_monthly: role === 'owner' ? computeIncomeMonthly_(bks) : null
+        income_monthly: role === 'owner' ? computeIncomeMonthly_(bks) : null,
+        accounts: role === 'owner' ? { owner_user: creds_().ownerUser, admin_user: creds_().adminUser } : null
       });
     } catch (err) { return json_({ ok: false, error: String(err) }); }
   }
 
+  if (action === 'update_credentials') return updateCredentials_(p, role);
   if (['create', 'update', 'cancel', 'create_maint', 'update_maint', 'delete_maint'].indexOf(action) === -1)
     return json_({ ok: false, error: 'Unknown action: ' + action });
 

@@ -48,7 +48,7 @@
   /* ================= PRINT STYLING (HIGH CONTRAST) ================= */
   @media print{
     *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important}
-    .no-print,header,#formModal,#detailModal,#maintModal,#msg{display:none !important}
+    .no-print,header,#formModal,#detailModal,#maintModal,#credModal,#msg{display:none !important}
     body{background:#fff !important;color:#000 !important}
     .print-only{display:block !important}
     body.print-daily #monthModal{display:none !important}
@@ -110,6 +110,7 @@
       <label class="flex items-center gap-2 text-sm"><span data-i18n="stayDate" class="font-semibold"></span><input id="dateSel" type="date" class="rounded px-2 py-1 text-stone-900"></label>
       <span id="bedBadge"></span>
       <button id="maintOpen" type="button" class="text-sm bg-yellow-400 text-stone-900 font-semibold rounded px-2 py-1" data-i18n="maintBtn"></button>
+      <button id="credOpen" type="button" class="hidden text-sm bg-emerald-700 hover:bg-emerald-600 border border-emerald-400 rounded px-2 py-1" data-i18n="credBtn"></button>
       <button id="logoutBtn" type="button" class="text-sm border border-emerald-300 rounded px-2 py-1" data-i18n="logout"></button>
     </div>
   </div>
@@ -235,6 +236,34 @@
   </div>
 </div>
 
+<!-- Account Settings modal (Owner only) -->
+<div id="credModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-10 animate-fade-in">
+  <form id="credForm" class="bg-white rounded-lg w-full max-w-md p-5 space-y-3 max-h-full overflow-y-auto animate-zoom-in">
+    <h2 class="text-lg font-bold text-emerald-800" data-i18n="credTitle"></h2>
+    <div class="rounded border bg-emerald-50/60 border-emerald-200 p-3 space-y-2">
+      <div class="text-xs font-bold uppercase tracking-wide text-emerald-800" data-i18n="ownerSection"></div>
+      <label class="block text-sm"><span data-i18n="username"></span> *
+        <input name="owner_user" required autocomplete="off" class="mt-1 w-full border rounded px-2 py-1 bg-white"></label>
+      <label class="block text-sm"><span data-i18n="newPass"></span>
+        <input name="owner_pass" type="password" autocomplete="new-password" class="mt-1 w-full border rounded px-2 py-1 bg-white"></label>
+    </div>
+    <div class="rounded border bg-stone-50 border-stone-200 p-3 space-y-2">
+      <div class="text-xs font-bold uppercase tracking-wide text-stone-700" data-i18n="staffSection"></div>
+      <label class="block text-sm"><span data-i18n="username"></span> *
+        <input name="admin_user" required autocomplete="off" class="mt-1 w-full border rounded px-2 py-1 bg-white"></label>
+      <label class="block text-sm"><span data-i18n="newPass"></span>
+        <input name="admin_pass" type="password" autocomplete="new-password" class="mt-1 w-full border rounded px-2 py-1 bg-white"></label>
+    </div>
+    <label class="block text-sm pt-1"><span class="font-semibold text-stone-800" data-i18n="curOwnerPass"></span> *
+      <input name="current_password" type="password" required autocomplete="current-password" class="mt-1 w-full border rounded px-2 py-1"></label>
+    <p id="credErr" class="hidden text-sm text-red-600"></p>
+    <div class="flex justify-end gap-2 pt-1">
+      <button type="button" data-close class="px-3 py-1 rounded border" data-i18n="cancel"></button>
+      <button id="credSave" class="px-4 py-1 rounded bg-emerald-700 text-white font-semibold" data-i18n="save"></button>
+    </div>
+  </form>
+</div>
+
 <script>
 const MAX_EXTRA = 2;
 const EXTRA_BED_RATE = 400;
@@ -267,7 +296,12 @@ const I18N = {
     maintUpdated:'อัปเดตการปิดซ่อมแล้ว: ', maintDeleted:'ยกเลิกการปิดซ่อมแล้ว: ', startLbl:'เริ่ม', endLbl:'สิ้นสุด', edit:'แก้ไข', updated:'อัปเดตการจองแล้ว: ',
     badResponse:'เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง', roomCost:'ค่าห้องพัก', extraBedCost:'ค่าเตียงเสริม',
     bedFullWarning:'⚠️ เตียงเสริมเต็มแล้วสำหรับวันที่เลือก (0/2)',
-    bookingType:'ช่องทางการจอง', bookingChannel:'📅 จองล่วงหน้า (Booking)', walkInChannel:'🚶‍♂️ Walk-in'
+    bookingType:'ช่องทางการจอง', bookingChannel:'📅 จองล่วงหน้า (Booking)', walkInChannel:'🚶‍♂️ Walk-in',
+    credBtn:'⚙️ ตั้งค่าบัญชี', credTitle:'ตั้งค่าบัญชีผู้ใช้ (Username / Password)',
+    ownerSection:'👑 บัญชีเจ้าของ (Owner)', staffSection:'👤 บัญชีผู้ดูแล (Staff / Admin)',
+    newPass:'รหัสผ่านใหม่ (เว้นว่างหากไม่ต้องการเปลี่ยน)', curOwnerPass:'รหัสผ่านเจ้าของปัจจุบัน (ยืนยันตัวตน)',
+    credSaved:'บันทึกชื่อผู้ใช้และรหัสผ่านเรียบร้อยแล้ว', wrongCurPass:'รหัสผ่านเจ้าของปัจจุบันไม่ถูกต้อง',
+    sameUserErr:'ชื่อผู้ใช้ของเจ้าของและผู้ดูแลต้องไม่ซ้ำกัน', shortPassErr:'รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร'
   },
   en: {
     available:'Available', booked:'Booked (night of selected date)', office:'Office', walkway:'— walkway —',
@@ -296,7 +330,12 @@ const I18N = {
     maintUpdated:'Repair updated: ', maintDeleted:'Repair cancelled: ', startLbl:'Start', endLbl:'End', edit:'Edit', updated:'Booking updated: ',
     badResponse:'Invalid server response', roomCost:'Room Cost', extraBedCost:'Extra Bed Cost',
     bedFullWarning:'⚠️ Extra beds fully booked (0/2)',
-    bookingType:'Booking Channel', bookingChannel:'📅 Advance Booking', walkInChannel:'🚶‍♂️ Walk-in'
+    bookingType:'Booking Channel', bookingChannel:'📅 Advance Booking', walkInChannel:'🚶‍♂️ Walk-in',
+    credBtn:'⚙️ Accounts', credTitle:'Account Settings (Username / Password)',
+    ownerSection:'👑 Owner Account', staffSection:'👤 Staff / Admin Account',
+    newPass:'New Password (leave blank to keep current)', curOwnerPass:'Current Owner Password (to confirm)',
+    credSaved:'Account credentials updated successfully', wrongCurPass:'Current owner password is incorrect',
+    sameUserErr:'Owner and Staff usernames must be different', shortPassErr:'Password must be at least 4 characters'
   }
 };
 let lang = 'th';
@@ -366,13 +405,14 @@ async function api(action, data) {
   if (!j.ok && j.error === 'UNAUTHORIZED') { showLogin('sessionExpired'); throw new Error(t('sessionExpired')); }
   return j;
 }
-let apiVersion = 0, maint = [], incomeMonthly = null;
+let apiVersion = 0, maint = [], incomeMonthly = null, accounts = null;
 async function load() {
   try {
     const j = await api('list');
     if (!j.ok) throw new Error(j.error);
     bookings = j.bookings; maint = j.maintenance || []; apiVersion = j.api_version || 0;
     userRole = j.role || 'staff';
+    accounts = j.accounts || null;
     incomeMonthly = j.income_monthly ? Object.fromEntries(j.income_monthly.map(x => [x.month, x])) : null;
     render();
   } catch (e) { if (getToken()) show(t('loadFail') + e.message, false); }
@@ -388,7 +428,7 @@ function showLogin(msgKey) {
   try { sessionStorage.removeItem('pafun_token'); } catch (e) {}
   bookings = []; maint = []; incomeMonthly = null; $('layout').innerHTML = '';
   $('app').classList.add('hidden');
-  document.querySelectorAll('#formModal,#detailModal,#maintModal,#monthModal').forEach(m => m.classList.add('hidden'));
+  document.querySelectorAll('#formModal,#detailModal,#maintModal,#monthModal,#credModal').forEach(m => m.classList.add('hidden'));
   $('loginView').classList.remove('hidden');
   const err = $('loginErr');
   if (msgKey) { err.textContent = t(msgKey); err.classList.remove('hidden'); } else err.classList.add('hidden');
@@ -402,6 +442,7 @@ $('loginForm').addEventListener('submit', async e => {
     if (!j.ok) throw new Error(j.error === 'INVALID_LOGIN' ? t('loginFail') : j.error);
     try { sessionStorage.setItem('pafun_token', j.token); } catch (x) {}
     userRole = j.role || 'staff';
+    accounts = j.accounts || null;
     $('lPass').value = ''; enterApp();
   } catch (x) { err.textContent = x.message; err.classList.remove('hidden'); }
   btn.disabled = false; btn.textContent = t('loginBtn');
@@ -413,6 +454,7 @@ $('logoutBtn').onclick = async () => {
 
 function render() {
   if (!getToken()) return;
+  $('credOpen').classList.toggle('hidden', userRole !== 'owner');
   const d = $('dateSel').value;
   const used = bookings.filter(b => b.extra_bed === 1 && occupies(b, d)).length;
   const badge = $('bedBadge');
@@ -849,7 +891,36 @@ document.addEventListener('click', e => {
   const mid = e.target.closest('[data-mid]')?.dataset.mid;
   if (mid) { const m = maint.find(x => x.maintenance_id === mid); if (m) openMaintDetails(m); }
 });
-document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => (b.closest('#formModal,#detailModal,#maintModal,#monthModal') || $('monthModal')).classList.add('hidden'));
+$('credOpen').onclick = () => {
+  const f = $('credForm').elements;
+  $('credForm').reset(); $('credErr').classList.add('hidden');
+  f.owner_user.value = (accounts && accounts.owner_user) || 'owner';
+  f.admin_user.value = (accounts && accounts.admin_user) || 'admin_pafun';
+  $('credModal').classList.remove('hidden');
+};
+$('credForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = $('credForm').elements, btn = $('credSave'), err = $('credErr');
+  btn.disabled = true; btn.textContent = t('saving'); err.classList.add('hidden');
+  try {
+    const j = await api('update_credentials', {
+      owner_user: f.owner_user.value.trim(), owner_pass: f.owner_pass.value,
+      admin_user: f.admin_user.value.trim(), admin_pass: f.admin_pass.value,
+      current_password: f.current_password.value
+    });
+    if (!j.ok) {
+      const msg = j.error === 'WRONG_PASSWORD' ? t('wrongCurPass')
+        : j.error === 'SAME_USERNAME' ? t('sameUserErr')
+        : j.error === 'SHORT_PASSWORD' ? t('shortPassErr') : j.error;
+      throw new Error(msg);
+    }
+    accounts = j.accounts || accounts;
+    $('credModal').classList.add('hidden');
+    show(t('credSaved'), true);
+  } catch (x) { err.textContent = x.message; err.classList.remove('hidden'); }
+  btn.disabled = false; btn.textContent = t('save');
+});
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => (b.closest('#formModal,#detailModal,#maintModal,#monthModal,#credModal') || $('monthModal')).classList.add('hidden'));
 const ds = $('dateSel'); ds.min = addDays(today, -30); ds.max = maxDate; ds.value = today;
 ds.addEventListener('change', render);
 applyLang();
