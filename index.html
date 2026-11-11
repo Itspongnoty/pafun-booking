@@ -492,11 +492,12 @@ function render() {
     const b = bookings.find(x => x.house_number === n && occupies(x, d));
     const m = !b && maint.find(x => x.house_number === n && x.start_date <= d && d <= x.end_date);
     const el = document.createElement('button');
-    el.className = 'house st-' + (b ? 'booked' : m ? 'repair' : 'free') + ' h-24 rounded-lg shadow flex flex-col items-center justify-center relative ' + (b ? 'bg-red-500 text-white' : m ? 'bg-yellow-400 text-stone-900' : 'bg-emerald-500 text-white');
+    el.className = 'house st-' + (b ? 'booked' : m ? 'repair' : 'free') + ' min-h-[6rem] py-1 px-1 rounded-lg shadow flex flex-col items-center justify-center relative overflow-hidden ' + (b ? 'bg-red-500 text-white' : m ? 'bg-yellow-400 text-stone-900' : 'bg-emerald-500 text-white');
     el.style.gridColumn = POS[n][0]; el.style.gridRow = POS[n][1];
     
     let extraTag = (b && b.extra_bed === 1) ? `<span class="text-[10px] bg-amber-200 text-amber-900 font-bold px-1 rounded mt-0.5 shadow-sm">🛏️ เตียงเสริม</span>` : '';
-    el.innerHTML = `<span class="text-3xl font-bold">${n}</span><span class="text-xs opacity-90">${m ? '🔧 ' + t('repairLabel') : TYPES(n)}</span>${extraTag}<span class="print-only text-xs font-bold">${t(b ? 'stBooked' : m ? 'stRepair' : 'stFree')}</span>${b ? '<span class="print-only text-[10px]">' + esc(b.customer_name) + '</span>' : ''}`;
+    let noteTag = (b && b.purpose) ? `<span title="${esc(b.purpose)}" class="text-[11px] bg-black/25 text-white font-medium px-1.5 rounded mt-0.5 max-w-[95%] truncate">📝 ${esc(b.purpose)}</span>` : '';
+    el.innerHTML = `<span class="text-3xl font-bold leading-tight">${n}</span><span class="text-xs opacity-90">${m ? '🔧 ' + t('repairLabel') : TYPES(n)}</span>${extraTag}${noteTag}<span class="print-only text-xs font-bold">${t(b ? 'stBooked' : m ? 'stRepair' : 'stFree')}</span>${b ? '<span class="print-only text-[10px]">' + esc(b.customer_name) + '</span>' : ''}`;
     el.onclick = () => b ? openDetails(b) : m ? openMaintDetails(m) : openForm(n);
     L.appendChild(el);
   }
