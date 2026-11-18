@@ -5,7 +5,7 @@
 
 const SHEET_NAME = 'Bookings';
 const TZ = 'Asia/Bangkok';
-const MAX_EXTRA_BEDS = 2;      // resort-wide capacity
+const MAX_EXTRA_BEDS = 4;      // resort-wide capacity
 const EXTRA_BED_RATE = 400;    // THB / night
 const RETENTION_DAYS = 30;     // keep history this long
 const HORIZON_MONTHS = 6;      // how far ahead bookings are allowed
